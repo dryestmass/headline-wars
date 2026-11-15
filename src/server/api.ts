@@ -133,20 +133,6 @@ export default {
   },
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
-    if (pathname === "/api/dev-publish-bls" && request.method === "POST" &&
-      new URL(request.url).hostname === "dev-headline-wars.dryestmass.workers.dev" &&
-      await hashVoter("headline-wars-dev-publish", request.headers.get("X-Dev-Publish") ?? "") === "759c1c99195cef73dbe33a5c94637e2afd8b3d29c7ce1870ba2417013163e6a3") {
-      await env.DB.prepare(`
-        INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
-        SELECT 'bls-import-prices-2026-10', ?, ?, '2026-11-17T00:00:00.000Z', '2026-11-17T13:25:00.000Z'
-        WHERE NOT EXISTS (SELECT 1 FROM questions WHERE id = 'bls-import-prices-2026-10')
-      `).bind(
-        "Did U.S. import prices rise in October?",
-        "YES if the Bureau of Labor Statistics first reports that all U.S. import prices increased from September to October 2026. NO if the initially reported month-over-month change was zero or negative. Use the all-imports figure in the October U.S. Import and Export Price Indexes news release scheduled for November 17. Leave pending if the release is delayed or the figure is unavailable.",
-      ).run();
-      const scheduled = await env.DB.prepare("SELECT id, opens_at, closes_at, status FROM questions WHERE id = 'bls-import-prices-2026-10'").first();
-      return json({ scheduled }, 201);
-    }
     if (pathname.startsWith("/api/")) {
       try { return await handleApi(request, env, pathname); }
       catch (error) {
