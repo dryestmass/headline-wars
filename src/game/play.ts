@@ -24,17 +24,35 @@ function element(tag: string, text?: string, className?: string): HTMLElement {
 }
 
 function results(question: Question): HTMLElement {
+  const section = element("section", undefined, "predictions");
+  section.append(element("h3", "Current predictions", "eyebrow"));
   const list = element("ul", undefined, "vote-results");
+  let totalVotes = 0;
   for (const team of ["red", "blue"] as const) {
     const { yes, no } = question.votes[team];
-    const summary = element("li", `Team ${team === "red" ? "Red" : "Blue"}: ${yes} YES, ${no} NO`);
-    if (question.status === "resolved" && question.outcome) {
-      const { correct, total } = accuracy(question.votes[team], question.outcome);
-      summary.append(total ? ` (${correct} of ${total} correct)` : " (no votes)");
+    const total = yes + no;
+    totalVotes += total;
+    const percentage = total ? Math.round(100 * yes / total) : 0;
+    const item = element("li", undefined, `team-tally team-tally--${team}`);
+    const caption = element("div", undefined, "tally-caption");
+    caption.append(element("strong", team.toUpperCase()),
+      element("span", total ? `${percentage}% YES · ${100 - percentage}% NO` : "No votes yet"));
+    const bar = element("div", undefined, "tally-track");
+    bar.setAttribute("aria-hidden", "true");
+    const fill = element("span");
+    fill.style.width = `${percentage}%`;
+    bar.append(fill);
+    item.append(caption, bar);
+    if (question.status === "resolved" && question.outcome && total) {
+      const { correct } = accuracy(question.votes[team], question.outcome);
+      item.append(element("small", `${correct} of ${total} correct`));
     }
-    list.append(summary);
+    list.append(item);
   }
-  return list;
+  const total = element("p", undefined, "total-votes");
+  total.append(element("span", "Total votes", "eyebrow"), element("strong", totalVotes.toLocaleString()));
+  section.append(list, total);
+  return section;
 }
 
 function sourceLink(href: string, label: string): HTMLAnchorElement {
@@ -58,7 +76,7 @@ function questionCard(question: Question, today: boolean): HTMLElement {
   if (source.url) card.append(sourceLink(source.url, "Official floor schedule"));
   if (question.status === "open") {
     const deadline = new Date(question.closesAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-    card.append(element("p", `Voting closes ${deadline}`));
+    card.append(element("p", `Voting closes ${deadline}`, "deadline"));
   }
   if (question.ballot) card.append(receipt(question.ballot));
   if (question.status === "closed") card.append(element("p", "Voting closed. Awaiting verification."));
@@ -110,7 +128,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
           button.addEventListener("click", () => void vote(today.id, answer));
           choices.append(button);
         }
-        panel.insertBefore(choices, panel.querySelector(".vote-results"));
+        panel.insertBefore(choices, panel.querySelector(".predictions"));
       }
     }
     const archive = element("section", undefined, "archive");
@@ -119,22 +137,31 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       ["Verified Results", questions.filter((q) => q.status === "resolved"), "No verified outcomes yet."],
     ] as const) {
       const list = document.createElement("details");
-      list.open = Array.from(container.querySelectorAll("details[open]")).some((item) => item.firstElementChild?.textContent === label);
-      list.append(element("summary", label));
+      list.open = Array.from(container.querySelectorAll("details[open]")).some((item) => (item as HTMLElement).dataset.archive === label);
+      const heading = element("summary", label);
+      heading.append(element("span", entries.length.toString(), "archive-count"));
+      list.dataset.archive = label;
+      list.append(heading);
       list.append(...(entries.length ? entries.map((entry) => questionCard(entry, false)) : [element("p", empty)]));
       archive.append(list);
     }
 
     const focused = document.activeElement;
     const answer = focused instanceof HTMLElement ? focused.dataset.answer : undefined;
-    const summary = focused?.tagName === "SUMMARY" ? focused.textContent : null;
+    const summary = focused?.tagName === "SUMMARY" ? focused.parentElement?.dataset.archive : null;
     container.replaceChildren(panel, archive);
     if (focused?.classList.contains("ballot-receipt")) {
       container.querySelector<HTMLElement>(".question .ballot-receipt")?.focus({ preventScroll: true });
     }
     if (answer) (container.querySelector<HTMLElement>(`[data-answer="${answer}"]`) ??
       container.querySelector<HTMLElement>(".question .ballot-receipt"))?.focus({ preventScroll: true });
-    if (summary) Array.from(container.querySelectorAll("summary")).find((item) => item.textContent === summary)?.focus();
+    if (summary) Array.from(container.querySelectorAll("summary")).find((item) => item.parentElement?.dataset.archive === summary)?.focus();
+    const lead = score.querySelector("[data-score-lead]");
+    if (lead) {
+      const difference = game.scores.red - game.scores.blue;
+      lead.textContent = difference === 0 ? "TEAMS TIED" :
+        `${difference > 0 ? "RED" : "BLUE"} LEADS BY ${Math.abs(difference)} ${Math.abs(difference) === 1 ? "HEADLINE" : "HEADLINES"}`;
+    }
     for (const side of ["red", "blue"] as const) {
       const total = score.querySelector(`[data-score="${side}"]`);
       if (total) total.textContent = String(game.scores[side]);
