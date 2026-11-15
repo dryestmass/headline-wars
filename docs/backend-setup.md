@@ -89,3 +89,9 @@ For edits, use the trusted publication statement and retain the draft ID. Update
 At 30 minutes past each hour, the dev Worker checks the Senate Periodical Press Gallery floor schedule for a forthcoming confirmation roll call. It publishes at most one autonomous question per UTC date and waits whenever another question is open. Voting closes after at most 24 hours and at least 15 minutes before the scheduled vote. Only upcoming votes with a usable published time are eligible.
 
 The same scheduled job checks due pending questions against the official Senate roll call index and individual roll call record. It matches the nominee and confirmation vote type, then uses the recorded confirmed or rejected result. An absent, delayed, ambiguous or pre-close result does not award a point. The official roll-call URL is stored with each resolved outcome. The first scheduled run initializes the autonomous question registry in dev D1.
+
+### House floor votes
+
+The congressional source also checks the House's weekly Bills This Week XML from Sunday through Wednesday, Eastern time. Senate confirmations are offered first, then House bills scheduled under a rule, then House suspension bills. The two chambers share the same voting slot and daily publication limit.
+
+House questions use the first matching final-passage roll call between ballot close and Friday night Eastern. The resolver checks the official roll call XML for the bill, Congress, vote type, timestamp and result. Bills that have already received a recorded final-passage vote are skipped during discovery. Procedural votes are excluded, and an absent or inconclusive record stays pending.

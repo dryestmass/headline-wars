@@ -1,6 +1,6 @@
 import { EVIDENCE_REFRESH, runEditorialJob } from "./editorial";
 import { runAutonomousCycle } from "./autonomous";
-import { senateSource } from "./senate";
+import { congressSource } from "./congress";
 import type { Ballot, Game, Question } from "../game/model";
 import { winner, type Answer, type Team } from "../game/scoring";
 
@@ -134,7 +134,7 @@ export default {
     const editorial = runEditorialJob(env.DB, controller.cron, controller.scheduledTime);
     if (controller.cron === EVIDENCE_REFRESH) {
       const jobs = await Promise.allSettled([
-        editorial, runAutonomousCycle(env.DB, senateSource(), controller.scheduledTime),
+        editorial, runAutonomousCycle(env.DB, congressSource(), controller.scheduledTime),
       ]);
       for (const job of jobs) if (job.status === "rejected") throw job.reason;
       return;
