@@ -4,9 +4,18 @@
   "compatibility_date": "2026-11-15",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS"
   },
   "previews": {
     "enabled": true
-  }
+  },
+  "main": "src/server/api.ts",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "headline-wars-dev",
+      "database_id": "d7922fa8-7b4e-48ab-aa94-35f19d460113"
+    }
+  ]
 }
