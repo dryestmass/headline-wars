@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { getPlatformProxy, type PlatformProxy } from "wrangler";
 import type { Game } from "../game/model";
+import { publishDaily, resolveDue, type AutonomousSource } from "./autonomous";
 import { EVIDENCE_REFRESH, NEWS_REFRESH, runEditorialJob } from "./editorial";
 import worker, { type Env } from "./api";
 
@@ -203,6 +204,61 @@ test("runs discovery, approval, voting, evidence, and scoring as one lifecycle",
     });
     expect(verified.scores).toEqual({ red: 1, blue: 0 });
     expect((await game()).scores).toEqual({ red: 1, blue: 0 });
+  } finally {
+    await isolated.dispose();
+  }
+}, 30000);
+
+test("the autonomous sequence rotates the daily question and verifies a pending one only when due", async () => {
+  const isolated = await getPlatformProxy<Env>({ persist: false });
+  const db = isolated.env.DB;
+  const first = { id: "rotation-first", prompt: "Synthetic first question", criteria: "Synthetic evidence",
+    decisionAt: "2024-05-02T15:00:00.000Z" };
+  const second = { ...first, id: "rotation-second", prompt: "Synthetic second question",
+    decisionAt: "2024-05-03T15:00:00.000Z" };
+  const sourceUrl = "https://example.test/official-fixture";
+  let evidenceAvailable = false;
+  let evidenceChecks = 0;
+  const source: AutonomousSource = {
+    discover: async (now) => now.getUTCDate() === 1 ? [first] : [first, second],
+    verify: async () => {
+      evidenceChecks++;
+      return evidenceAvailable ? { outcome: "yes", sourceUrl } : null;
+    },
+  };
+  const dayOne = Date.parse("2024-05-01T13:00:00Z");
+  const dayTwo = Date.parse("2024-05-02T13:00:00Z");
+  const due = Date.parse(first.decisionAt);
+  const phase = (id: string, time: number) => db.prepare(`
+    SELECT CASE WHEN status = 'open' AND closes_at <= ? THEN 'closed' ELSE status END AS phase
+    FROM questions WHERE id = ?
+  `).bind(new Date(time).toISOString(), id).first("phase");
+
+  try {
+    await applyMigrations(db);
+    await publishDaily(db, source, dayOne);
+    await publishDaily(db, source, dayOne);
+    expect(await phase(first.id, dayOne)).toBe("open");
+    await db.prepare("INSERT INTO votes (question_id, voter_hash, team, answer) VALUES (?, 'fixture-red', 'red', 'yes')")
+      .bind(first.id).run();
+    await publishDaily(db, source, dayTwo);
+    expect(await phase(first.id, dayTwo)).toBe("closed");
+    expect(await phase(second.id, dayTwo)).toBe("open");
+
+    await resolveDue(db, source, [first, second], due - 1);
+    expect(evidenceChecks).toBe(0);
+    await resolveDue(db, source, [first, second], due);
+    expect(await phase(first.id, due)).toBe("closed");
+    evidenceAvailable = true;
+    await resolveDue(db, source, [first, second], due + 60000);
+    await resolveDue(db, source, [first, second], due + 60000);
+    expect(evidenceChecks).toBe(2);
+
+    const result = await (await request("/api/game", voter, undefined, isolated.env)).json<Game>();
+    expect(result.questions.find((question) => question.id === first.id)).toMatchObject({
+      status: "resolved", outcome: "yes", sourceUrl, winner: "red",
+    });
+    expect(result.scores).toEqual({ red: 1, blue: 0 });
   } finally {
     await isolated.dispose();
   }
