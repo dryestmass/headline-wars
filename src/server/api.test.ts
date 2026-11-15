@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { getPlatformProxy, type PlatformProxy } from "wrangler";
 import type { Game } from "../game/model";
-import { publishDaily, resolveDue, type AutonomousSource } from "./autonomous";
+import { runAutonomousCycle, type AutonomousSource } from "./autonomous";
 import { EVIDENCE_REFRESH, NEWS_REFRESH, runEditorialJob } from "./editorial";
 import worker, { type Env } from "./api";
 
@@ -236,22 +236,22 @@ test("the autonomous sequence rotates the daily question and verifies a pending 
 
   try {
     await applyMigrations(db);
-    await publishDaily(db, source, dayOne);
-    await publishDaily(db, source, dayOne);
+    await runAutonomousCycle(db, source, dayOne);
+    await runAutonomousCycle(db, source, dayOne);
     expect(await phase(first.id, dayOne)).toBe("open");
     await db.prepare("INSERT INTO votes (question_id, voter_hash, team, answer) VALUES (?, 'fixture-red', 'red', 'yes')")
       .bind(first.id).run();
-    await publishDaily(db, source, dayTwo);
+    await runAutonomousCycle(db, source, dayTwo);
     expect(await phase(first.id, dayTwo)).toBe("closed");
     expect(await phase(second.id, dayTwo)).toBe("open");
 
-    await resolveDue(db, source, [first, second], due - 1);
+    await runAutonomousCycle(db, source, due - 1);
     expect(evidenceChecks).toBe(0);
-    await resolveDue(db, source, [first, second], due);
+    await runAutonomousCycle(db, source, due);
     expect(await phase(first.id, due)).toBe("closed");
     evidenceAvailable = true;
-    await resolveDue(db, source, [first, second], due + 60000);
-    await resolveDue(db, source, [first, second], due + 60000);
+    await runAutonomousCycle(db, source, due + 60000);
+    await runAutonomousCycle(db, source, due + 60000);
     expect(evidenceChecks).toBe(2);
 
     const result = await (await request("/api/game", voter, undefined, isolated.env)).json<Game>();

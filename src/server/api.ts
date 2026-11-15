@@ -1,4 +1,6 @@
-import { runEditorialJob } from "./editorial";
+import { EVIDENCE_REFRESH, runEditorialJob } from "./editorial";
+import { runAutonomousCycle } from "./autonomous";
+import { senateSource } from "./senate";
 import type { Ballot, Game, Question } from "../game/model";
 import { winner, type Answer, type Team } from "../game/scoring";
 
@@ -129,7 +131,15 @@ async function handleApi(request: Request, env: Env, path: string): Promise<Resp
 
 export default {
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
-    await runEditorialJob(env.DB, controller.cron, controller.scheduledTime);
+    const editorial = runEditorialJob(env.DB, controller.cron, controller.scheduledTime);
+    if (controller.cron === EVIDENCE_REFRESH) {
+      const jobs = await Promise.allSettled([
+        editorial, runAutonomousCycle(env.DB, senateSource(), controller.scheduledTime),
+      ]);
+      for (const job of jobs) if (job.status === "rejected") throw job.reason;
+      return;
+    }
+    await editorial;
   },
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);

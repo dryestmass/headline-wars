@@ -83,3 +83,9 @@ ON CONFLICT(id) DO NOTHING;
 ```
 
 For edits, use the trusted publication statement and retain the draft ID. Update the corresponding evidence search and deadline if the criteria change. Evidence checks cover published questions with a matching draft once voting and the outcome window have closed. Results are review candidates only. A zero-result search does not verify a NO outcome. Keep using the trusted verification statement to record a decision and its source. Questions published before this queue was introduced can still be reviewed manually.
+
+## Autonomous Senate questions
+
+At 30 minutes past each hour, the dev Worker checks the Senate Periodical Press Gallery floor schedule for a forthcoming confirmation roll call. It publishes at most one autonomous question per UTC date and waits whenever another question is open. Voting closes after at most 24 hours and at least 15 minutes before the scheduled vote. Only upcoming votes with a usable published time are eligible.
+
+The same scheduled job checks due pending questions against the official Senate roll call index and individual roll call record. It matches the nominee and confirmation vote type, then uses the recorded confirmed or rejected result. An absent, delayed, ambiguous or pre-close result does not award a point. The official roll-call URL is stored with each resolved outcome. The first scheduled run initializes the autonomous question registry in dev D1.
