@@ -1,3 +1,4 @@
+import { allowVote, ensureOperations, readHealth, trackJob } from "./operations";
 import { EVIDENCE_REFRESH, runEditorialJob } from "./editorial";
 import { runAutonomousCycle } from "./autonomous";
 import { congressSource } from "./congress";
@@ -46,8 +47,10 @@ async function hashVoter(secret: string, identifier: string): Promise<string> {
 }
 
 async function readGame(db: D1Database, hash: string, votingEnabled: boolean, now: string): Promise<Game> {
+  await ensureOperations(db);
   const { results } = await db.prepare(`
-    SELECT q.id, q.prompt, q.criteria, q.closes_at, q.status, q.outcome, q.source_url,
+    SELECT q.id, q.prompt, q.criteria, q.closes_at, q.status,
+      COALESCE(edit.outcome, q.outcome) AS outcome, COALESCE(edit.source_url, q.source_url) AS source_url,
       COUNT(CASE WHEN v.team = 'red' AND v.answer = 'yes' THEN 1 END) AS red_yes,
       COUNT(CASE WHEN v.team = 'red' AND v.answer = 'no' THEN 1 END) AS red_no,
       COUNT(CASE WHEN v.team = 'blue' AND v.answer = 'yes' THEN 1 END) AS blue_yes,
@@ -55,7 +58,10 @@ async function readGame(db: D1Database, hash: string, votingEnabled: boolean, no
       MAX(CASE WHEN v.voter_hash = ?1 THEN v.team END) AS voter_team,
       MAX(CASE WHEN v.voter_hash = ?1 THEN v.answer END) AS voter_answer
     FROM questions q LEFT JOIN votes v ON v.question_id = q.id
-    WHERE q.opens_at <= ?2 AND q.status <> 'void'
+    LEFT JOIN editorial_actions edit ON edit.seq = (
+      SELECT MAX(seq) FROM editorial_actions WHERE question_id = q.id
+    )
+    WHERE q.opens_at <= ?2 AND q.status <> 'void' AND COALESCE(edit.action, '') <> 'void'
     GROUP BY q.id
     ORDER BY q.opens_at DESC, q.id DESC
   `).bind(hash, now).all<QuestionRow>();
@@ -81,6 +87,10 @@ async function readGame(db: D1Database, hash: string, votingEnabled: boolean, no
 }
 
 async function handleApi(request: Request, env: Env, path: string): Promise<Response> {
+  if (request.method === "GET" && path === "/api/health") {
+    const health = await readHealth(env.DB, Date.now());
+    return json(health, health.ok ? 200 : 503);
+  }
   const secret = env.VOTER_HASH_SECRET ?? "";
   const votingEnabled = secret.length >= 32;
   const id = voterId(request);
@@ -93,6 +103,14 @@ async function handleApi(request: Request, env: Env, path: string): Promise<Resp
   if (request.method !== "POST" || !match) return json({ error: "Not found" }, 404);
   if (!votingEnabled) return json({ error: "Voting is temporarily unavailable" }, 503);
   if (!id) return json({ error: "Invalid browser voter ID" }, 400);
+
+  const key = request.headers.get("CF-Connecting-IP") ?? id;
+  const networkHash = await hashVoter(secret, `rate:${key}`);
+  if (!await allowVote(env.DB, networkHash, Date.now())) {
+    return Response.json({ error: "Too many vote attempts. Try again in a minute." }, {
+      status: 429, headers: { "Retry-After": "60", "Cache-Control": "no-store" },
+    });
+  }
 
   if (Number(request.headers.get("content-length")) > 1024) {
     return json({ error: "Request too large" }, 413);
@@ -131,10 +149,18 @@ async function handleApi(request: Request, env: Env, path: string): Promise<Resp
 
 export default {
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
-    const editorial = runEditorialJob(env.DB, controller.cron, controller.scheduledTime);
+    const time = controller.scheduledTime;
+    const editorial = trackJob(env.DB, controller.cron === EVIDENCE_REFRESH ? "evidence" : "federal",
+      time, () => runEditorialJob(env.DB, controller.cron, time));
     if (controller.cron === EVIDENCE_REFRESH) {
       const jobs = await Promise.allSettled([
-        editorial, runAutonomousCycle(env.DB, congressSource(), controller.scheduledTime),
+        editorial,
+        trackJob(env.DB, "congressional", time, () => runAutonomousCycle(
+          env.DB, congressSource(fetch, (name, run) => trackJob(env.DB, `source-${name}`, time, run,
+            (candidates) => candidates.length ? "candidates" : "no-candidates")), time,
+        ), (state) => state),
+        ensureOperations(env.DB).then(() => env.DB.prepare("DELETE FROM vote_rate WHERE minute < ?")
+          .bind(Math.floor(time / 60000) - 120).run()),
       ]);
       for (const job of jobs) if (job.status === "rejected") throw job.reason;
       return;

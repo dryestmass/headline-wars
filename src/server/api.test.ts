@@ -4,6 +4,7 @@ import { getPlatformProxy, type PlatformProxy } from "wrangler";
 import type { Game } from "../game/model";
 import { runAutonomousCycle, type AutonomousSource } from "./autonomous";
 import { EVIDENCE_REFRESH, NEWS_REFRESH, runEditorialJob } from "./editorial";
+import { allowVote, ensureOperations, readHealth, trackJob } from "./operations";
 import worker, { type Env } from "./api";
 
 let platform: PlatformProxy<Env>;
@@ -259,6 +260,61 @@ test("the autonomous sequence rotates the daily question and verifies a pending 
       status: "resolved", outcome: "yes", sourceUrl, winner: "red",
     });
     expect(result.scores).toEqual({ red: 1, blue: 0 });
+  } finally {
+    await isolated.dispose();
+  }
+}, 30000);
+
+test("operational controls audit scoring corrections, void questions, and enforce network caps", async () => {
+  const isolated = await getPlatformProxy<Env>({ persist: false });
+  const db = isolated.env.DB;
+  const ops = (action: string, id: string | null, outcome: string | null = null, source: string | null = null) =>
+    db.prepare("INSERT INTO editorial_actions (action,question_id,outcome,source_url,reason) VALUES (?,?,?,?,'test')")
+      .bind(action, id, outcome, source).run();
+  const game = async () => (await request("/api/game", voter, undefined, isolated.env)).json<Game>();
+  try {
+    await applyMigrations(db);
+    await ensureOperations(db);
+    await db.prepare(`
+      INSERT INTO questions (id,prompt,criteria,opens_at,closes_at)
+      VALUES ('ops-fixture','Test','Test','2020-01-01T00:00:00.000Z','2020-01-02T00:00:00.000Z')
+    `).run();
+    await db.prepare(`
+      INSERT INTO votes (question_id,voter_hash,team,answer)
+      VALUES ('ops-fixture','red-test','red','yes'),('ops-fixture','blue-test','blue','no')
+    `).run();
+    await db.prepare(`
+      UPDATE questions SET status='resolved',outcome='yes',source_url='https://example.test/original',
+        resolved_at='2020-01-02T00:00:00.000Z' WHERE id='ops-fixture'
+    `).run();
+    expect((await game()).scores).toEqual({ red: 1, blue: 0 });
+    await ops("correct", "ops-fixture", "no", "https://example.test/correction");
+    expect((await game()).scores).toEqual({ red: 0, blue: 1 });
+    expect((await game()).questions[0].sourceUrl).toBe("https://example.test/correction");
+    expect(await db.prepare("SELECT outcome FROM questions WHERE id='ops-fixture'").first("outcome")).toBe("yes");
+    await expect(db.prepare("DELETE FROM editorial_actions").run()).rejects.toThrow(/append-only/);
+    await ops("void", "ops-fixture");
+    expect((await game()).questions).toEqual([]);
+    expect((await game()).scores).toEqual({ red: 0, blue: 0 });
+
+    const now = Date.now();
+    await ops("pause", null);
+    const source: AutonomousSource = {
+      discover: async () => { throw new Error("Discovery should have been paused"); },
+      verify: async () => null,
+    };
+    expect(await runAutonomousCycle(db, source, now)).toBe("paused");
+    await ops("resume", null);
+
+    await Promise.all(["congressional", "evidence", "federal"].map((job) => trackJob(db, job, now, async () => "ok")));
+    expect(await readHealth(db, now)).toMatchObject({ ok: true, paused: false });
+    await expect(trackJob(db, "source-senate", now, async () => { throw new Error("source unavailable"); }))
+      .rejects.toThrow("source unavailable");
+    expect(await readHealth(db, now)).toMatchObject({ ok: false });
+
+    const attempts = await Promise.all(Array.from({ length: 35 }, () => allowVote(db, "hashed-test-network", now)));
+    expect(attempts.filter(Boolean)).toHaveLength(30);
+    expect(await allowVote(db, "hashed-test-network", now + 60000)).toBe(true);
   } finally {
     await isolated.dispose();
   }

@@ -95,3 +95,22 @@ The same scheduled job checks due pending questions against the official Senate 
 The congressional source also checks the House's weekly Bills This Week XML from Sunday through Wednesday, Eastern time. Senate confirmations are offered first, then House bills scheduled under a rule, then House suspension bills. The two chambers share the same voting slot and daily publication limit.
 
 House questions use the first matching final-passage roll call between ballot close and Friday night Eastern. The resolver checks the official roll call XML for the bill, Congress, vote type, timestamp and result. Bills that have already received a recorded final-passage vote are skipped during discovery. Procedural votes are excluded, and an absent or inconclusive record stays pending.
+
+## Dev operations
+
+`GET /api/health` reports the latest known job and source states, whether publishing is paused, and how many autonomous questions are more than 48 hours past their decision date. It returns 503 when a required job is stale or failed, a congressional source has failed on its latest attempt, or a decision is overdue. An occupied slot or a source with no eligible candidates is normal. Check Cloudflare scheduled Worker logs for the failure details.
+
+Use the trusted dev D1 Console for emergency controls. These actions are append-only. The original resolution and evidence remain in `questions`, corrections and voids remain in `editorial_actions`, and the public scoreboard is recomputed from the effective outcomes.
+
+```sql
+INSERT INTO editorial_actions (action, reason) VALUES ('pause', 'Reason for pausing');
+INSERT INTO editorial_actions (action, reason) VALUES ('resume', 'Reason for resuming');
+INSERT INTO editorial_actions (action, question_id, reason)
+VALUES ('void', 'question-id', 'Reason for withdrawal');
+INSERT INTO editorial_actions (action, question_id, outcome, source_url, reason)
+VALUES ('correct', 'question-id', 'yes', 'https://official.example/evidence', 'Reason for correction');
+```
+
+Pausing holds new autonomous publications while letting evidence checks and scheduled questions continue. Corrections apply only to verified results and require an HTTPS evidence URL. Voiding withdraws a question and removes any point it contributed. Record the operator and decision in the reason.
+
+The vote endpoint allows 30 attempts per network per UTC minute and responds with HTTP 429 on excess attempts. D1 stores an HMAC of the Cloudflare client IP, or the voter identifier if the header is absent. The hourly job removes buckets more than two hours old. The existing one-ballot-per-browser rule still applies.

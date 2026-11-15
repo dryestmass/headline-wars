@@ -1,3 +1,4 @@
+import { ensureOperations } from "./operations";
 import type { Answer } from "../game/scoring";
 
 export interface Candidate {
@@ -35,8 +36,9 @@ async function ensureRegistry(db: D1Database): Promise<void> {
   `).run();
 }
 
-export async function publishDaily(db: D1Database, source: AutonomousSource, time: number): Promise<void> {
+export async function publishDaily(db: D1Database, source: AutonomousSource, time: number): Promise<string> {
   await ensureRegistry(db);
+  await ensureOperations(db);
   const now = new Date(time);
   const opensAt = now.toISOString();
   const date = opensAt.slice(0, 10);
@@ -45,7 +47,10 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
     UNION ALL SELECT 1 FROM questions WHERE status = 'open' AND opens_at <= ?2 AND closes_at > ?2
     LIMIT 1
   `).bind(date, opensAt).first();
-  if (busy) return;
+  if (busy) return "slot-occupied";
+  const action = await db.prepare("SELECT action FROM editorial_actions WHERE question_id IS NULL ORDER BY seq DESC LIMIT 1")
+    .first<string>("action");
+  if (action === "pause") return "paused";
 
   const candidates = await source.discover(now);
   for (const candidate of candidates) {
@@ -56,7 +61,8 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
       db.prepare(`
         INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
         SELECT ?1, ?2, ?3, ?4, ?5
-        WHERE NOT EXISTS (SELECT 1 FROM autonomous_questions WHERE published_day = ?6)
+        WHERE COALESCE((SELECT action FROM editorial_actions WHERE question_id IS NULL ORDER BY seq DESC LIMIT 1), '') <> 'pause'
+          AND NOT EXISTS (SELECT 1 FROM autonomous_questions WHERE published_day = ?6)
           AND NOT EXISTS (
             SELECT 1 FROM questions WHERE status = 'open' AND opens_at < ?5 AND closes_at > ?4
           )
@@ -70,9 +76,10 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
     ]);
     if (insert.meta.changes) {
       console.info("Published autonomous question", { id: candidate.id, closesAt });
-      return;
+      return "published";
     }
   }
+  return "no-eligible-candidate";
 }
 
 export async function resolveDue(
@@ -102,15 +109,20 @@ export async function resolveDue(
   if (failures.length) throw new Error(`${failures.length} autonomous evidence checks failed`);
 }
 
-export async function runAutonomousCycle(db: D1Database, source: AutonomousSource, time: number): Promise<void> {
+export async function runAutonomousCycle(db: D1Database, source: AutonomousSource, time: number): Promise<string> {
   await ensureRegistry(db);
+  await ensureOperations(db);
   const { results } = await db.prepare(`
     SELECT q.id, q.prompt, q.criteria, a.decision_at AS decisionAt, a.subject, a.office
     FROM autonomous_questions a JOIN questions q ON q.id = a.id
     WHERE q.status IN ('open', 'closed') AND q.closes_at <= ?1 AND a.decision_at <= ?1
+      AND NOT EXISTS (SELECT 1 FROM editorial_actions WHERE question_id = q.id AND action = 'void')
     ORDER BY a.checked_at, a.decision_at, a.id
     LIMIT 10
   `).bind(new Date(time).toISOString()).all<Candidate>();
   const tasks = await Promise.allSettled([resolveDue(db, source, results, time), publishDaily(db, source, time)]);
-  for (const task of tasks) if (task.status === "rejected") throw task.reason;
+  const [resolution, publication] = tasks;
+  if (resolution.status === "rejected") throw resolution.reason;
+  if (publication.status === "rejected") throw publication.reason;
+  return publication.value;
 }
