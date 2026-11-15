@@ -18,5 +18,11 @@
       "database_name": "headline-wars-dev",
       "database_id": "d7922fa8-7b4e-48ab-aa94-35f19d460113"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": [
+      "0 13 * * *",
+      "30 * * * *"
+    ]
+  }
 }

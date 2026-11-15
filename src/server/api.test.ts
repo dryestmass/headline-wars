@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { getPlatformProxy, type PlatformProxy } from "wrangler";
 import type { Game } from "../game/model";
+import { EVIDENCE_REFRESH, NEWS_REFRESH, runEditorialJob } from "./editorial";
 import worker, { type Env } from "./api";
 
 let platform: PlatformProxy<Env>;
@@ -93,4 +94,48 @@ test("requires evidence after closing and scores verified results beyond the dis
   expect(questions.filter((q: { status: string }) => q.status === "resolved")).toHaveLength(50);
   expect(questions.some((q: { id: string }) => q.id === "fixture-expired")).toBe(false);
   expect(scores).toEqual({ red: 0, blue: 1 });
+});
+
+test("scheduled drafts deduplicate, wait for publication, and collect evidence without scoring", async () => {
+  const draftTime = Date.parse("2024-01-01T13:00:00Z");
+  const id = "fr-2024-90001";
+  const news: typeof fetch = async () => Response.json({ results: [{
+    document_number: "2024-90001",
+    title: "Synthetic editorial fixture",
+    publication_date: "2024-01-01",
+    html_url: "https://www.federalregister.gov/documents/synthetic-editorial-fixture",
+    docket_ids: ["Docket No. FAA-2024-10000"],
+  }] });
+  await runEditorialJob(env.DB, NEWS_REFRESH, draftTime, news);
+  await runEditorialJob(env.DB, NEWS_REFRESH, draftTime + 86400000, news);
+  expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM question_drafts").first("count")).toBe(1);
+  expect(await env.DB.prepare("SELECT id FROM questions WHERE id = ?").bind(id).first()).toBeNull();
+
+  let calls = 0;
+  const evidence: typeof fetch = async (input) => {
+    calls++;
+    expect(new URL(String(input)).searchParams.get("conditions[docket_id]")).toBe("FAA-2024-10000");
+    return Response.json({ count: 0 });
+  };
+  const due = Date.parse("2024-04-02T13:30:00Z");
+  await runEditorialJob(env.DB, EVIDENCE_REFRESH, due, evidence);
+  expect(calls).toBe(0);
+  await env.DB.prepare(`
+    INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
+    SELECT id, json_extract(draft_json, '$.prompt'), json_extract(draft_json, '$.criteria'),
+           json_extract(draft_json, '$.opensAt'), json_extract(draft_json, '$.closesAt')
+    FROM question_drafts WHERE id = ?
+  `).bind(id).run();
+  await runEditorialJob(env.DB, EVIDENCE_REFRESH, draftTime + 3 * 86400000, evidence);
+  expect(calls).toBe(0);
+  await runEditorialJob(env.DB, EVIDENCE_REFRESH, due, evidence);
+  await runEditorialJob(env.DB, EVIDENCE_REFRESH, due + 3600000, evidence);
+  expect(calls).toBe(1);
+  const saved = await env.DB.prepare("SELECT evidence_json FROM question_drafts WHERE id = ?")
+    .bind(id).first<string>("evidence_json");
+  expect(JSON.parse(saved!)).toMatchObject({ count: 0, candidates: [] });
+  const game = await (await request("/api/game", voter)).json<Game>();
+  expect(game.questions.find((question) => question.id === id)).toMatchObject({
+    status: "closed", outcome: null, winner: null,
+  });
 });

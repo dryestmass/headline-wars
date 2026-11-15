@@ -3,12 +3,12 @@ import { pathToFileURL } from "node:url";
 const documents = "https://www.federalregister.gov/api/v1/documents.json";
 const day = 86400000;
 const date = (time) => new Date(time).toISOString().slice(0, 10);
-const ruleId = /^[0-9A-Z]{4}-[0-9A-Z]{4}$/;
+const docketId = /^(?:Docket (?:No\. |ID )?)?([A-Z0-9]+(?:-[A-Z0-9]+){2,})$/i;
 
 export async function draftQuestions({ now = Date.now(), fetchSource = fetch } = {}) {
   const today = date(now);
   const url = new URL(documents);
-  for (const field of ["document_number", "title", "publication_date", "html_url", "regulation_id_numbers"]) {
+  for (const field of ["document_number", "title", "publication_date", "html_url", "docket_ids"]) {
     url.searchParams.append("fields[]", field);
   }
   url.searchParams.set("per_page", "20");
@@ -29,10 +29,13 @@ export async function draftQuestions({ now = Date.now(), fetchSource = fetch } =
   const seen = new Set();
   const drafts = [];
   for (const document of results) {
-    if (!document || !Array.isArray(document.regulation_id_numbers)) continue;
-    const [rin] = document.regulation_id_numbers;
-    if (document.regulation_id_numbers.length !== 1 || typeof rin !== "string" ||
-        !ruleId.test(rin) || seen.has(rin)) continue;
+    if (!document || !Array.isArray(document.docket_ids)) continue;
+    const dockets = new Set(document.docket_ids.flatMap((id) => {
+      const docket = typeof id === "string" ? docketId.exec(id.trim())?.[1] : undefined;
+      return docket ? [docket.toUpperCase()] : [];
+    }));
+    const [docket] = dockets;
+    if (dockets.size !== 1 || seen.has(docket)) continue;
     const { title, publication_date: published, document_number: number, html_url: source } = document;
     if (typeof title !== "string" || !title.trim() || typeof number !== "string" ||
         !/^\d{4}-\d{5}$/.test(number) || typeof published !== "string" ||
@@ -40,7 +43,7 @@ export async function draftQuestions({ now = Date.now(), fetchSource = fetch } =
         typeof source !== "string" || !source.startsWith("https://www.federalregister.gov/documents/")) continue;
 
     const evidence = new URL(documents);
-    evidence.searchParams.set("conditions[regulation_id_number]", rin);
+    evidence.searchParams.set("conditions[docket_id]", docket);
     evidence.searchParams.append("conditions[type][]", "RULE");
     evidence.searchParams.set("conditions[publication_date][gte]", firstDate);
     evidence.searchParams.set("conditions[publication_date][lte]", lastDate);
@@ -48,14 +51,14 @@ export async function draftQuestions({ now = Date.now(), fetchSource = fetch } =
       id: `fr-${number}`,
       status: "needs-review",
       prompt: `Will a federal rule for “${title.trim()}” be published by ${lastDate}?`,
-      criteria: `YES if the Federal Register publishes a document classified as Rule with RIN ${rin} and a publication date from ${firstDate} through ${lastDate}, inclusive. NO if no matching document is found after the deadline and the Federal Register record is complete. Leave pending if the evidence is inconclusive.`,
+      criteria: `YES if the Federal Register publishes a document classified as Rule for docket ${docket} that finalizes proposed document ${number} and a publication date from ${firstDate} through ${lastDate}, inclusive. NO if no matching document is found after the deadline and the Federal Register record is complete. Leave pending if the evidence is inconclusive.`,
       opensAt,
       closesAt,
       outcomeDeadline: lastDate,
       sourceUrl: source,
       evidenceSearchUrl: evidence.href,
     });
-    seen.add(rin);
+    seen.add(docket);
   }
   return drafts;
 }

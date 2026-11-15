@@ -7,7 +7,7 @@ const item = {
   document_number: "2026-12345",
   publication_date: "2026-11-13",
   html_url: "https://www.federalregister.gov/documents/synthetic-proposal",
-  regulation_id_numbers: ["1234-AB56"],
+  docket_ids: ["Docket No. FAA-2026-13802", "Project Identifier AD-2026-00597-T"],
 };
 
 test("builds review drafts with stable IDs and evidence searches", async () => {
@@ -25,13 +25,13 @@ test("builds review drafts with stable IDs and evidence searches", async () => {
     sourceUrl: item.html_url,
   });
   const evidence = new URL(drafts[0].evidenceSearchUrl);
-  expect(evidence.searchParams.get("conditions[regulation_id_number]")).toBe("1234-AB56");
+  expect(evidence.searchParams.get("conditions[docket_id]")).toBe("FAA-2026-13802");
   expect(evidence.searchParams.get("conditions[type][]")).toBe("RULE");
   expect(evidence.searchParams.get("conditions[publication_date][gte]")).toBe("2026-11-17");
 });
 
 test("skips ambiguous or unusable source records", async () => {
-  const results = [null, { ...item, regulation_id_numbers: ["1234-AB56", "1234-AB57"] },
+  const results = [null, { ...item, docket_ids: ["FAA-2026-13802", "FAA-2026-13803"] },
     { ...item, publication_date: "2026-11-16" }, { ...item, html_url: "https://example.test" }];
   await expect(draftQuestions({ now, fetchSource: async () => Response.json({ results }) })).resolves.toEqual([]);
 });

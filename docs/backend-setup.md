@@ -56,6 +56,30 @@ Set status to `void` to withdraw an unresolved question. Resolved and void recor
 
 Run `npm run --silent questions:draft` on the dev checkout to generate a JSON review batch from recent Federal Register proposed rules. The command reads the public source and writes drafts to stdout. No credentials are required.
 
-Each draft ties the original notice to one regulation identifier (RIN) and includes a filtered search for corresponding rule publications after the vote closes. The suggested horizon is 90 calendar days. The source currently covers federal rulemaking. Use the source article to check that a draft is suitable for players and confirm the official publication dates and criteria.
+Each draft ties the original notice to one agency docket and includes a filtered search for rule publications in that docket after the vote closes. The suggested horizon is 90 calendar days. The source currently covers federal rulemaking. Use the source article to check that a draft is suitable for players and confirm the official publication dates and criteria.
 
 Drafts in a batch propose the same daily voting window. Pick at most one for that window, adjust the prompt or timing if needed, and use the existing trusted publication write above. If timing changes, update the date range in both the criteria and evidence search. Leave the question pending if the source is incomplete. The draft command does not write to D1 or resolve questions.
+
+## Scheduled editorial review
+
+The dev Worker refreshes Federal Register drafts at 13:00 UTC daily and checks for due evidence at 30 minutes past each hour. The first job initializes the `question_drafts` table in the dev D1 database. Subsequent discovery runs preserve existing drafts by document ID. Reviewers can use the D1 console to inspect candidates and see which IDs have been published.
+
+```sql
+SELECT d.id, d.discovered_at, d.draft_json, q.status AS published_status,
+       d.evidence_checked_at, d.evidence_json
+FROM question_drafts d LEFT JOIN questions q ON q.id = d.id
+ORDER BY d.discovered_at DESC, d.id;
+```
+
+To approve an unexpired draft with unchanged criteria, supply its ID as the parameter. This copies one reviewed draft into the live publication schedule. Check the voting window first because the database rejects overlapping open windows.
+
+```sql
+INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
+SELECT id, json_extract(draft_json, '$.prompt'), json_extract(draft_json, '$.criteria'),
+       json_extract(draft_json, '$.opensAt'), json_extract(draft_json, '$.closesAt')
+FROM question_drafts
+WHERE id = ?1 AND json_extract(draft_json, '$.opensAt') >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+ON CONFLICT(id) DO NOTHING;
+```
+
+For edits, use the trusted publication statement and retain the draft ID. Update the corresponding evidence search and deadline if the criteria change. Evidence checks cover published questions with a matching draft once voting and the outcome window have closed. Results are review candidates only. A zero-result search does not verify a NO outcome. Keep using the trusted verification statement to record a decision and its source. Questions published before this queue was introduced can still be reviewed manually.

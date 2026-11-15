@@ -1,3 +1,4 @@
+import { runEditorialJob } from "./editorial";
 import type { Ballot, Game, Question } from "../game/model";
 import { winner, type Answer, type Team } from "../game/scoring";
 
@@ -127,6 +128,9 @@ async function handleApi(request: Request, env: Env, path: string): Promise<Resp
 }
 
 export default {
+  async scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    await runEditorialJob(env.DB, controller.cron, controller.scheduledTime);
+  },
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
     if (pathname.startsWith("/api/")) {
