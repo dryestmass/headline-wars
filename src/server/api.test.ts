@@ -24,15 +24,19 @@ function publish(id: string, opens: string, closes: string) {
     .bind(id, "Synthetic test question", "Synthetic test criteria", opens, closes).run();
 }
 
+async function applyMigrations(db: D1Database): Promise<void> {
+  const schema = await readFile("migrations/0001_initial.sql", "utf8");
+  await db.exec(schema.replace(/^--.*$/gm, "").split(";").map((part) => part.trim().replace(/\s+/g, " ")).filter(Boolean).join(";\n"));
+  const lifecycle = await readFile("migrations/0002_editorial_lifecycle.sql", "utf8");
+  for (const trigger of lifecycle.split(/\nEND;/).slice(0, -1)) {
+    await db.prepare(`${trigger.trim()}\nEND;`).run();
+  }
+}
+
 beforeAll(async () => {
   platform = await getPlatformProxy<Env>({ persist: false });
   env = { ...platform.env, VOTER_HASH_SECRET: crypto.randomUUID() };
-  const schema = await readFile("migrations/0001_initial.sql", "utf8");
-  await env.DB.exec(schema.replace(/^--.*$/gm, "").split(";").map((part) => part.trim().replace(/\s+/g, " ")).filter(Boolean).join(";\n"));
-  const lifecycle = await readFile("migrations/0002_editorial_lifecycle.sql", "utf8");
-  for (const trigger of lifecycle.split(/\nEND;/).slice(0, -1)) {
-    await env.DB.prepare(`${trigger.trim()}\nEND;`).run();
-  }
+  await applyMigrations(env.DB);
   const now = Date.now();
   await publish(questionId, new Date(now - 3600000).toISOString(), new Date(now + 3600000).toISOString());
   await publish("fixture-future", new Date(now + 7200000).toISOString(), new Date(now + 10800000).toISOString());
@@ -139,3 +143,67 @@ test("scheduled drafts deduplicate, wait for publication, and collect evidence w
     status: "closed", outcome: null, winner: null,
   });
 });
+
+test("runs discovery, approval, voting, evidence, and scoring as one lifecycle", async () => {
+  const isolated = await getPlatformProxy<Env>({ persist: false });
+  const bindings = { ...isolated.env, VOTER_HASH_SECRET: crypto.randomUUID() };
+  const db = bindings.DB;
+  const id = "fr-2024-91001";
+  const voteUrl = `/api/questions/${id}/vote`;
+  const redVoter = crypto.randomUUID();
+  const blueVoter = crypto.randomUUID();
+  const evidenceUrl = "https://www.federalregister.gov/documents/synthetic-final-rule";
+  const game = async () => (await request("/api/game", redVoter, undefined, bindings)).json<Game>();
+  try {
+    await applyMigrations(db);
+    await runEditorialJob(db, NEWS_REFRESH, Date.parse("2024-01-01T13:00:00Z"), async () =>
+      Response.json({ results: [{
+        document_number: "2024-91001",
+        title: "Synthetic full-cycle proposal",
+        publication_date: "2024-01-01",
+        html_url: "https://www.federalregister.gov/documents/synthetic-proposal",
+        docket_ids: ["Docket No. FAA-2024-10000"],
+      }] }));
+    expect((await game()).questions).toEqual([]);
+
+    const opens = new Date(Date.now() - 1000).toISOString();
+    const closeTime = Date.now() + 5000;
+    const closes = new Date(closeTime).toISOString();
+    await db.prepare(`
+      INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
+      SELECT id, json_extract(draft_json, '$.prompt'), 'Synthetic shortened test window', ?, ?
+      FROM question_drafts WHERE id = ?
+    `).bind(opens, closes, id).run();
+    expect((await game()).questions[0]).toMatchObject({ id, status: "open" });
+    expect((await request(voteUrl, redVoter, { team: "red", answer: "yes" }, bindings)).status).toBe(201);
+    expect((await request(voteUrl, blueVoter, { team: "blue", answer: "no" }, bindings)).status).toBe(201);
+    expect((await game()).questions[0]).toMatchObject({
+      votes: { red: { yes: 1, no: 0 }, blue: { yes: 0, no: 1 } },
+      ballot: { team: "red", answer: "yes" },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, Math.max(0, closeTime - Date.now() + 50)));
+    expect((await game()).questions[0]).toMatchObject({ status: "closed", outcome: null });
+    expect((await request(voteUrl, crypto.randomUUID(), { team: "red", answer: "yes" }, bindings)).status).toBe(409);
+    await runEditorialJob(db, EVIDENCE_REFRESH, Date.now(), async () =>
+      Response.json({ count: 1, results: [{ html_url: evidenceUrl, docket_ids: ["FAA-2024-10000"] }] }));
+    const storedEvidence = await db.prepare("SELECT evidence_json FROM question_drafts WHERE id = ?")
+      .bind(id).first<string>("evidence_json");
+    expect(JSON.parse(storedEvidence!)).toMatchObject({ count: 1, candidates: [{ html_url: evidenceUrl }] });
+    expect((await game()).scores).toEqual({ red: 0, blue: 0 });
+
+    await db.prepare(`
+      UPDATE questions SET status = 'resolved', outcome = 'yes', source_url = ?,
+        resolved_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE id = ? AND status IN ('open', 'closed')
+    `).bind(evidenceUrl, id).run();
+    const verified = await game();
+    expect(verified.questions[0]).toMatchObject({
+      status: "resolved", outcome: "yes", sourceUrl: evidenceUrl, winner: "red",
+    });
+    expect(verified.scores).toEqual({ red: 1, blue: 0 });
+    expect((await game()).scores).toEqual({ red: 1, blue: 0 });
+  } finally {
+    await isolated.dispose();
+  }
+}, 30000);
