@@ -1,4 +1,5 @@
 import { fighters, type Fighter, type Team } from "./fighters";
+import { characterArt } from "./character-art";
 import "./styles.css";
 
 const key = "headline-wars:fighter";
@@ -20,7 +21,7 @@ function panel(team: Team): string {
   const fighter = fighters[team][index[team]];
   return `<section class="fighter fighter--${team}">
     <p>TEAM ${team.toUpperCase()}</p>
-    <div class="fighter__art" aria-hidden="true"><strong>${team === "red" ? "ELEPHANT" : "DONKEY"}</strong><span>FIGHTER ${index[team] + 1}</span></div>
+    <div class="fighter__art">${characterArt(team, index[team])}<span class="fighter__number">FIGHTER ${index[team] + 1}</span></div>
     <div class="fighter__selector">
       <button data-cycle="${team}:-1" aria-label="Previous ${team} fighter">‹</button>
       <div><strong>${fighter.name}</strong><small>${fighter.tagline}</small></div>
@@ -34,6 +35,10 @@ function selection(): void {
   app.innerHTML = `<main class="arena"><header><p class="eyebrow">HEADLINE WARS</p><h1>CHOOSE YOUR FIGHTER</h1><p>Pick a side. Call the headlines.</p></header>
     <div class="fighters">${panel("red")}<div class="versus">VS</div>${panel("blue")}</div>
     <p class="note">Choose the character that fits your outlook. You can change sides later.</p></main>`;
+  app.querySelectorAll<HTMLElement>(".fighter").forEach((fighter) => {
+    fighter.addEventListener("pointerenter", () => fighter.classList.add("is-previewing"));
+    fighter.addEventListener("pointerleave", () => fighter.classList.remove("is-previewing"));
+  });
   app.querySelectorAll<HTMLButtonElement>("[data-cycle]").forEach((button) => button.addEventListener("click", () => {
     const [team, delta] = button.dataset.cycle!.split(":") as [Team, string];
     index[team] = (index[team] + Number(delta) + fighters[team].length) % fighters[team].length;
@@ -45,10 +50,13 @@ function selection(): void {
 function choose(team: Team): void {
   const fighter = fighters[team][index[team]];
   try { localStorage.setItem(key, fighter.id); } catch { /* Storage may be disabled. */ }
+  app.querySelectorAll<HTMLButtonElement>("button").forEach((button) => button.disabled = true);
   const arena = app.querySelector(".arena");
   if (!arena) return;
+  arena.classList.add("arena--selected", `arena--selected-${team}`);
+  arena.querySelector(`.fighter--${team}`)?.classList.add("fighter--victory");
   arena.insertAdjacentHTML("beforeend", `<div class="welcome welcome--${team}" role="status"><strong>WELCOME TO TEAM ${team.toUpperCase()}</strong><span>${fighter.name}</span></div>`);
-  window.setTimeout(() => home(fighter), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1550);
+  window.setTimeout(() => home(fighter), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1750);
 }
 
 function home(fighter: Fighter): void {
