@@ -129,24 +129,6 @@ async function handleApi(request: Request, env: Env, path: string): Promise<Resp
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
-    if (pathname === "/api/dev-publish-approved" && request.method === "POST" &&
-      new URL(request.url).hostname === "dev-headline-wars.dryestmass.workers.dev" &&
-      await hashVoter("headline-wars-dev-publish", request.headers.get("X-Dev-Publish") ?? "") === "c85f8c4ca9137d358467c757d7931d7cf562e6b049771f57e1bc4db24d22de70") {
-      const now = new Date().toISOString();
-      await env.DB.batch([
-        env.DB.prepare("UPDATE questions SET status = 'void' WHERE id = 'phone-preview-01' AND status IN ('open', 'closed')"),
-        env.DB.prepare(`
-          INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
-          SELECT 'fr-2026-23198', ?, ?, ?, '2026-11-17T00:00:00.000Z'
-          WHERE NOT EXISTS (SELECT 1 FROM questions WHERE id = 'fr-2026-23198')
-        `).bind(
-          "Will the FAA publish a final airworthiness directive for this Boeing 787-8 proposal by February 14, 2027?",
-          "YES if the Federal Register publishes a final airworthiness directive for FAA docket FAA-2026-13802, proposed in document 2026-23198, with a publication date through February 14, 2027, inclusive. NO if no matching final directive is published by that date and the official record is complete. If a final directive is published while voting is open, void the question. Leave pending if the evidence is inconclusive.",
-          now,
-        ),
-      ]);
-      return json({ published: true }, 201);
-    }
     if (pathname.startsWith("/api/")) {
       try { return await handleApi(request, env, pathname); }
       catch (error) {
