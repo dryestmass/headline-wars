@@ -51,3 +51,11 @@ WHERE id = ?1 AND status IN ('open', 'closed')
 ```
 
 Set status to `void` to withdraw an unresolved question. Resolved and void records are final. Each verified winner contributes one point directly to the scoreboard from stored ballots, including results older than the 50 displayed in the archive.
+
+## Draft questions from a news source
+
+Run `npm run --silent questions:draft` on the dev checkout to generate a JSON review batch from recent Federal Register proposed rules. The command reads the public source and writes drafts to stdout. No credentials are required.
+
+Each draft ties the original notice to one regulation identifier (RIN) and includes a filtered search for corresponding rule publications after the vote closes. The suggested horizon is 90 calendar days. The source currently covers federal rulemaking. Use the source article to check that a draft is suitable for players and confirm the official publication dates and criteria.
+
+Drafts in a batch propose the same daily voting window. Pick at most one for that window, adjust the prompt or timing if needed, and use the existing trusted publication write above. If timing changes, update the date range in both the criteria and evidence search. Leave the question pending if the source is incomplete. The draft command does not write to D1 or resolve questions.
