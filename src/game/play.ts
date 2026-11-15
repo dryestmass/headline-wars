@@ -25,7 +25,7 @@ function element(tag: string, text?: string, className?: string): HTMLElement {
 
 function results(question: Question): HTMLElement {
   const section = element("section", undefined, "predictions");
-  section.append(element("h3", "Current predictions", "eyebrow"));
+  section.append(element("h3", question.status === "open" ? "Current predictions" : "Final predictions", "eyebrow"));
   const list = element("ul", undefined, "vote-results");
   let totalVotes = 0;
   for (const team of ["red", "blue"] as const) {
@@ -138,8 +138,10 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
     ] as const) {
       const list = document.createElement("details");
       list.open = Array.from(container.querySelectorAll("details[open]")).some((item) => (item as HTMLElement).dataset.archive === label);
-      const heading = element("summary", label);
-      heading.append(element("span", entries.length.toString(), "archive-count"));
+      const heading = element("summary");
+      const labelText = element("span", label, "archive-label");
+      labelText.append(element("span", ` (${entries.length})`, "archive-count"));
+      heading.append(element("span", undefined, "archive-icon"), labelText);
       list.dataset.archive = label;
       list.append(heading);
       list.append(...(entries.length ? entries.map((entry) => questionCard(entry, false)) : [element("p", empty)]));
@@ -159,6 +161,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
     const lead = score.querySelector("[data-score-lead]");
     if (lead) {
       const difference = game.scores.red - game.scores.blue;
+      score.dataset.leader = difference === 0 ? "tie" : difference > 0 ? "red" : "blue";
       lead.textContent = difference === 0 ? "TEAMS TIED" :
         `${difference > 0 ? "RED" : "BLUE"} LEADS BY ${Math.abs(difference)} ${Math.abs(difference) === 1 ? "HEADLINE" : "HEADLINES"}`;
     }

@@ -40,7 +40,7 @@ function selection(initial = remembered() ?? fighters.red[1]): void {
         <div class="fight-art" role="img" aria-label="Red elephant and Blue donkey facing off in a boxing ring"></div>
         ${panel("blue", chosen)}
       </div>
-      <p class="fighter-caption"><strong></strong><small></small></p>
+      <div class="fighter-nameplate"><p class="fighter-caption"><strong></strong><small></small></p></div>
       <button class="join" type="submit"></button>
     </form></main>`;
   const form = app.querySelector("form")!;
@@ -85,7 +85,7 @@ function home(fighter: Fighter): void {
     <section class="scoreboard" aria-label="Headlines won by team">
       <div class="scores">
         <div class="score-panel score-panel--red"><span>RED TEAM</span><strong data-score="red">–</strong></div>
-        <b aria-hidden="true">VS</b>
+        <b aria-hidden="true"><span>VS</span></b>
         <div class="score-panel score-panel--blue"><span>BLUE TEAM</span><strong data-score="blue">–</strong></div>
       </div>
       <p class="score-lead" data-score-lead>HEADLINES WON</p>
