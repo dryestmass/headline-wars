@@ -126,9 +126,50 @@ async function handleApi(request: Request, env: Env, path: string): Promise<Resp
   return json({ ballot }, insert.meta.changes ? 201 : 200);
 }
 
+async function liveSmoke(env: Env): Promise<Response> {
+  const id = "dev-smoke-" + crypto.randomUUID();
+  const now = Date.now();
+  const path = "/api/questions/" + id + "/vote";
+  const voter = crypto.randomUUID();
+  const headers = { "X-Voter-Id": voter, "Content-Type": "application/json" };
+  const vote = (answer: Answer) => handleApi(new Request("https://dev-headline-wars.dryestmass.workers.dev" + path, {
+    method: "POST", headers, body: JSON.stringify({ team: "red", answer }),
+  }), env, path);
+  await env.DB.prepare("INSERT INTO questions (id,prompt,criteria,opens_at,closes_at) VALUES (?, ?, ?, ?, ?)")
+    .bind(id, "Synthetic dev test", "Temporary ballot smoke test", new Date(now).toISOString(), new Date(now + 60000).toISOString()).run();
+  try {
+    const first = await vote("yes");
+    const replay = await vote("yes");
+    const change = await vote("no");
+    const state = await handleApi(new Request("https://dev-headline-wars.dryestmass.workers.dev/api/game", { headers }), env, "/api/game");
+    const game = await state.json<Game>();
+    const fixture = game.questions.find((question) => question.id === id);
+    const result = {
+      accepted: first.status === 201,
+      replay: replay.status === 200,
+      duplicateRejected: change.status === 409,
+      tallyUpdated: fixture?.votes.red.yes === 1 && fixture.votes.red.no === 0,
+      ballotRestored: fixture?.ballot?.team === "red" && fixture.ballot.answer === "yes",
+    };
+    return json(result, Object.values(result).every(Boolean) ? 200 : 500);
+  } finally {
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM votes WHERE question_id = ?").bind(id),
+      env.DB.prepare("DELETE FROM questions WHERE id = ?").bind(id),
+    ]);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
+    if (pathname === "/api/dev-smoke" && request.method === "POST" &&
+      new URL(request.url).hostname === "dev-headline-wars.dryestmass.workers.dev") {
+      const supplied = request.headers.get("X-Dev-Smoke") ?? "";
+      const fingerprint = await hashVoter("headline-wars-dev-smoke", supplied);
+      if (fingerprint !== "6f4a77e57dd28e4198bc65e8e5d7b59d35a9b8e63f87c7ff18dd8324afd42a10") return json({ error: "Not found" }, 404);
+      return liveSmoke(env);
+    }
     if (pathname.startsWith("/api/")) {
       try { return await handleApi(request, env, pathname); }
       catch (error) {
