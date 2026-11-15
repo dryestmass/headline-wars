@@ -1,4 +1,5 @@
 import type { Ballot, Game, Question } from "./model";
+import { questionSource } from "./question-source";
 import { accuracy, type Answer, type Team } from "./scoring";
 
 const voterKey = "headline-wars:voter";
@@ -36,17 +37,30 @@ function results(question: Question): HTMLElement {
   return list;
 }
 
+function sourceLink(href: string, label: string): HTMLAnchorElement {
+  const link = document.createElement("a");
+  link.href = href;
+  link.textContent = label;
+  return link;
+}
+
+function receipt(ballot: Ballot): HTMLElement {
+  const note = element("p", `You voted ${ballot.answer.toUpperCase()} for Team ${ballot.team === "red" ? "Red" : "Blue"}.`, "ballot-receipt");
+  note.tabIndex = -1;
+  return note;
+}
+
 function questionCard(question: Question, today: boolean): HTMLElement {
   const card = element(today ? "section" : "article", undefined, today ? "question" : "archive-entry");
   if (today) card.append(element("p", "TODAY'S PREDICTION", "eyebrow"));
-  card.append(element(today ? "h1" : "h2", question.prompt), element("p", question.criteria));
+  const source = questionSource(question.criteria);
+  card.append(element(today ? "h1" : "h2", question.prompt), element("p", source.criteria));
+  if (source.url) card.append(sourceLink(source.url, "Official floor schedule"));
   if (question.status === "open") {
     const deadline = new Date(question.closesAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
     card.append(element("p", `Voting closes ${deadline}`));
   }
-  if (question.ballot) {
-    card.append(element("p", `You voted ${question.ballot.answer.toUpperCase()} for Team ${question.ballot.team.toUpperCase()}.`));
-  }
+  if (question.ballot) card.append(receipt(question.ballot));
   if (question.status === "closed") card.append(element("p", "Voting closed. Awaiting verification."));
   if (question.status === "resolved") {
     const result = question.winner === "red" || question.winner === "blue"
@@ -57,10 +71,7 @@ function questionCard(question: Question, today: boolean): HTMLElement {
       try {
         const url = new URL(question.sourceUrl);
         if (url.protocol === "https:" || url.protocol === "http:") {
-          const link = document.createElement("a");
-          link.href = url.href;
-          link.textContent = "Verification source";
-          card.append(link);
+          card.append(sourceLink(url.href, "Official result"));
         }
       } catch { /* Skip malformed legacy source URLs. */ }
     }
@@ -76,15 +87,21 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
   let snapshot = "";
   let pendingRefresh: Promise<void> | undefined;
   let submitting = false;
+  const confirmedBallots = new Map<string, Ballot>();
 
   function render(game: Game): void {
-    const today = game.questions.find((question) => question.status === "open");
+    const questions = game.questions.map((question) => ({
+      ...question, ballot: question.ballot ?? confirmedBallots.get(question.id) ?? null,
+    }));
+    const today = questions.find((question) => question.status === "open");
     const panel = today ? questionCard(today, true) : element("section", "No prediction is open right now.", "question");
     if (today && !today.ballot) {
       if (!game.votingEnabled || !voter) {
         panel.append(element("p", voter ? "Voting is temporarily unavailable." : "Allow browser storage to vote."));
       } else {
         const choices = element("div", undefined, "choices");
+        choices.setAttribute("role", "group");
+        choices.setAttribute("aria-label", `Vote for Team ${team === "red" ? "Red" : "Blue"}`);
         for (const answer of ["yes", "no"] as const) {
           const button = document.createElement("button");
           button.textContent = answer.toUpperCase();
@@ -93,13 +110,13 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
           button.addEventListener("click", () => void vote(today.id, answer));
           choices.append(button);
         }
-        panel.append(choices);
+        panel.insertBefore(choices, panel.querySelector(".vote-results"));
       }
     }
     const archive = element("section", undefined, "archive");
     for (const [label, entries, empty] of [
-      ["Pending Questions", game.questions.filter((q) => q.status === "closed"), "No questions awaiting verification."],
-      ["Verified Results", game.questions.filter((q) => q.status === "resolved"), "No verified outcomes yet."],
+      ["Pending Questions", questions.filter((q) => q.status === "closed"), "No questions awaiting verification."],
+      ["Verified Results", questions.filter((q) => q.status === "resolved"), "No verified outcomes yet."],
     ] as const) {
       const list = document.createElement("details");
       list.open = Array.from(container.querySelectorAll("details[open]")).some((item) => item.firstElementChild?.textContent === label);
@@ -112,7 +129,11 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
     const answer = focused instanceof HTMLElement ? focused.dataset.answer : undefined;
     const summary = focused?.tagName === "SUMMARY" ? focused.textContent : null;
     container.replaceChildren(panel, archive);
-    if (answer) container.querySelector<HTMLElement>(`[data-answer="${answer}"]`)?.focus();
+    if (focused?.classList.contains("ballot-receipt")) {
+      container.querySelector<HTMLElement>(".question .ballot-receipt")?.focus({ preventScroll: true });
+    }
+    if (answer) (container.querySelector<HTMLElement>(`[data-answer="${answer}"]`) ??
+      container.querySelector<HTMLElement>(".question .ballot-receipt"))?.focus({ preventScroll: true });
     if (summary) Array.from(container.querySelectorAll("summary")).find((item) => item.textContent === summary)?.focus();
     for (const side of ["red", "blue"] as const) {
       const total = score.querySelector(`[data-score="${side}"]`);
@@ -162,7 +183,16 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
         body: JSON.stringify({ team, answer } satisfies Ballot),
         signal: lifetime.signal,
       });
-      const result = await response.json();
+      const result: { ballot?: Ballot; error?: string } = await response.json();
+      if (result.ballot) {
+        confirmedBallots.set(id, result.ballot);
+        const choices = container.querySelector(".question .choices");
+        if (choices) {
+          const note = receipt(result.ballot);
+          choices.replaceWith(note);
+          note.focus({ preventScroll: true });
+        }
+      }
       status.textContent = response.ok ? "Vote recorded." : result.error ?? "Could not submit your vote.";
     } catch {
       if (!lifetime.signal.aborted) status.textContent = "Could not confirm your vote. You can safely retry.";
@@ -175,9 +205,11 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
   }
 
   void requestRefresh();
-  const timer = window.setInterval(() => {
+  const refreshVisible = () => {
     if (!document.hidden && !submitting) void requestRefresh();
-  }, 10000);
+  };
+  document.addEventListener("visibilitychange", refreshVisible, { signal: lifetime.signal });
+  const timer = window.setInterval(refreshVisible, 10000);
   return () => {
     lifetime.abort();
     window.clearInterval(timer);
