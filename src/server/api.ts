@@ -129,6 +129,19 @@ async function handleApi(request: Request, env: Env, path: string): Promise<Resp
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
+    if (pathname === "/api/dev-preview-seed" && request.method === "POST" &&
+      new URL(request.url).hostname === "dev-headline-wars.dryestmass.workers.dev" &&
+      await hashVoter("headline-wars-dev-preview", request.headers.get("X-Dev-Preview") ?? "") === "d191199f72e0789a61de38951a3825a9cf00dd338b02a87a176ae973240879c4") {
+      await env.DB.prepare(`
+        INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
+        SELECT 'phone-preview-01', 'Demo question: Would you vote YES in this mobile test?',
+          'This is a practice ballot. Either answer is fine. It will not count toward the scoreboard.',
+          strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+4 hours')
+        WHERE NOT EXISTS (SELECT 1 FROM questions WHERE id = 'phone-preview-01')
+      `).run();
+      return json({ seeded: true }, 201);
+    }
     if (pathname.startsWith("/api/")) {
       try { return await handleApi(request, env, pathname); }
       catch (error) {
