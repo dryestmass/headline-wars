@@ -123,3 +123,11 @@
     animation: none !important;
   }
 }
+
+.choices button { padding-inline: clamp(24px, 10vw, 55px); }
+.choices button:enabled { background: #233963; color: #fff; cursor: pointer; }
+.vote-results { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 24px; padding: 0; list-style: none; }
+.archive-entry { padding-block: 12px; overflow-wrap: anywhere; }
+.archive-entry h2 { margin-bottom: 8px; font-size: 1.1rem; }
+.archive-entry .vote-results { justify-content: start; }
+#game-status { text-align: center; }

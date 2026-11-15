@@ -2,29 +2,9 @@
 
 A daily political news prediction game. Choose a fighter, pick a side, and call the headlines.
 
-## Status
-
-Early frontend prototype. Fighter selection and the transition to the homepage are interactive. Fighter artwork uses original animated vector prototypes; voting, scores, and questions are not live. All displayed results are fictional.
-
 ## Development
 
-Requires Node.js 20 or later.
-
-```sh
-npm install
-npm run dev
-```
-
-Run `npm run build` to type-check and produce the static site in `dist/`.
-
-## Structure
-
-- `src/fighters.ts`: team and fighter definitions.
-- `src/character-art.ts`: original fighter vector prototypes.
-- `src/main.ts`: selection, transition, and homepage interactions.
-- `src/styles.css`: responsive styles and reduced-motion support.
-
-GitHub Actions runs a TypeScript check and production build on pushes and pull requests. The prototype has no backend, production database, or API keys. Voting, scoring, and automated headline verification will be implemented and tested separately before launch.
+Use Node.js 22 or later. Run `npm ci`, `npm run test`, and `npm run build`. See [backend setup](docs/backend-setup.md) for local and remote development, question publication, and verification.
 
 ## Game rules
 

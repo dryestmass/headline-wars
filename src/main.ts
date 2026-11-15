@@ -1,5 +1,6 @@
 import { fighters, type Fighter, type Team } from "./fighters";
 import { characterArt } from "./character-art";
+import { startGame } from "./game/play";
 import "./styles.css";
 
 const key = "headline-wars:fighter";
@@ -61,16 +62,22 @@ function choose(team: Team): void {
 
 function home(fighter: Fighter): void {
   app.innerHTML = `<main class="home"><header class="top"><strong>HEADLINE WARS</strong><button id="change-side">Change side</button></header>
-    <section class="scoreboard" aria-label="Illustrative scoreboard"><p>HEADLINES WON</p>
-      <div class="scores"><div><span>RED</span><strong>42</strong></div><b>VS</b><div><span>BLUE</span><strong>47</strong></div></div>
-      <p>BLUE LEADS BY 5 HEADLINES</p></section>
+    <section class="scoreboard" aria-label="Team scoreboard"><p>HEADLINES WON</p>
+      <div class="scores"><div><span>RED</span><strong data-score="red">-</strong></div><b>VS</b><div><span>BLUE</span><strong data-score="blue">-</strong></div></div>
+    </section>
     <p class="identity">Playing as ${fighter.name} on Team ${fighter.team.toUpperCase()}</p>
-    <section class="question"><p class="eyebrow">TODAY'S PREDICTION · DEMO</p><h1>Will Congress pass a major spending bill by Friday?</h1>
-      <p>Illustrative question. Voting is not enabled yet.</p><div class="choices"><button disabled>YES</button><button disabled>NO</button></div></section>
-    <section class="archive"><details><summary>Pending Questions</summary><p>Questions will appear when voting is live.</p></details>
-      <details><summary>Verified Results</summary><p>Verified outcomes will appear when verification is live.</p></details></section>
-    <footer>Prototype preview. All scores and questions are fictional.</footer></main>`;
-  app.querySelector("#change-side")?.addEventListener("click", selection);
+    <p id="game-status" role="status"></p>
+    <div id="game">Loading predictions.</div></main>`;
+  const stop = startGame(
+    app.querySelector<HTMLElement>("#game")!,
+    app.querySelector<HTMLElement>(".scoreboard")!,
+    app.querySelector<HTMLElement>("#game-status")!,
+    fighter.team,
+  );
+  app.querySelector("#change-side")?.addEventListener("click", () => {
+    stop();
+    selection();
+  });
 }
 
 const previous = remembered();
