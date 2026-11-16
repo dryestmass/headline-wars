@@ -1,4 +1,5 @@
 import { fighters, type Fighter, type Team } from "./fighters";
+import { sprite } from "./game/fighter-sprite";
 import { startGame } from "./game/play";
 import { listenForSounds, soundButton } from "./game/sound";
 import "./styles.css";
@@ -28,13 +29,6 @@ function panel(team: Team, chosen: Fighter): string {
       <span>${fighter.name.replace(/ (Republican|Democrat)$/, "")}</span>
     </label>`).join("")}
   </fieldset>`;
-}
-
-function sprite(team: Team): string {
-  return `<div class="fighter-sprite fighter-sprite--${team}" aria-hidden="true">
-    <span class="fighter-pose fighter-pose--guard"></span>
-    <span class="fighter-pose fighter-pose--jab"></span>
-  </div>`;
 }
 
 function selection(initial = remembered() ?? fighters.red[1]): void {

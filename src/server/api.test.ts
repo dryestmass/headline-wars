@@ -1,3 +1,4 @@
+import { easternDateTime, nextRollover } from "./rollover";
 import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { getPlatformProxy, type PlatformProxy } from "wrangler";
@@ -214,9 +215,9 @@ test("the autonomous sequence rotates the daily question and verifies a pending 
   const isolated = await getPlatformProxy<Env>({ persist: false });
   const db = isolated.env.DB;
   const first = { id: "rotation-first", prompt: "Will the first synthetic event happen?", criteria: "Synthetic evidence",
-    decisionAt: "2024-05-02T15:00:00.000Z" };
+    decisionAt: "2024-05-02T21:00:00.000Z" };
   const second = { ...first, id: "rotation-second", prompt: "Will the second synthetic event happen?",
-    decisionAt: "2024-05-03T15:00:00.000Z" };
+    decisionAt: "2024-05-03T21:00:00.000Z" };
   const sourceUrl = "https://example.test/official-fixture";
   let evidenceAvailable = false;
   let evidenceChecks = 0;
@@ -228,8 +229,8 @@ test("the autonomous sequence rotates the daily question and verifies a pending 
       return evidenceAvailable ? { outcome: "yes", sourceUrl } : null;
     },
   };
-  const dayOne = Date.parse("2024-05-01T13:00:00Z");
-  const dayTwo = Date.parse("2024-05-02T13:00:00Z");
+  const dayOne = Date.parse("2024-05-01T19:00:00Z");
+  const dayTwo = Date.parse("2024-05-02T19:00:00Z");
   const due = Date.parse(first.decisionAt);
   const phase = (id: string, time: number) => db.prepare(`
     SELECT CASE WHEN status = 'open' AND closes_at <= ? THEN 'closed' ELSE status END AS phase
@@ -321,3 +322,10 @@ test("operational controls audit scoring corrections, void questions, and enforc
     await isolated.dispose();
   }
 }, 30000);
+
+
+test("keeps 3 p.m. Eastern across daylight saving changes and midnight UTC", () => {
+  expect(easternDateTime(Date.parse("2026-11-16T01:00:00Z"))).toEqual({ date: "2026-11-15", hour: 20 });
+  expect(new Date(nextRollover(Date.parse("2026-03-07T20:00:00Z"))).toISOString()).toBe("2026-03-08T19:00:00.000Z");
+  expect(new Date(nextRollover(Date.parse("2026-10-31T19:00:00Z"))).toISOString()).toBe("2026-11-01T20:00:00.000Z");
+});

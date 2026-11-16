@@ -1,3 +1,4 @@
+import { DAILY_ROLLOVER, easternDateTime, ROLLOVER_HOUR } from "./rollover";
 import { allowVote, ensureOperations, readHealth, trackJob } from "./operations";
 import { EVIDENCE_REFRESH, runEditorialJob } from "./editorial";
 import { runAutonomousCycle } from "./autonomous";
@@ -150,15 +151,21 @@ async function handleApi(request: Request, env: Env, path: string): Promise<Resp
 export default {
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
     const time = controller.scheduledTime;
+    const { hour } = easternDateTime(time);
+    const autonomous = (publish: boolean) => trackJob(env.DB, "congressional", time, () => runAutonomousCycle(
+      env.DB, congressSource(fetch, (name, run) => trackJob(env.DB, `source-${name}`, time, run,
+        (candidates) => candidates.length ? "candidates" : "no-candidates")), time, publish,
+    ), (state) => state);
+    if (controller.cron === DAILY_ROLLOVER) {
+      if (hour === ROLLOVER_HOUR) await autonomous(true);
+      return;
+    }
     const editorial = trackJob(env.DB, controller.cron === EVIDENCE_REFRESH ? "evidence" : "federal",
       time, () => runEditorialJob(env.DB, controller.cron, time));
     if (controller.cron === EVIDENCE_REFRESH) {
       const jobs = await Promise.allSettled([
         editorial,
-        trackJob(env.DB, "congressional", time, () => runAutonomousCycle(
-          env.DB, congressSource(fetch, (name, run) => trackJob(env.DB, `source-${name}`, time, run,
-            (candidates) => candidates.length ? "candidates" : "no-candidates")), time,
-        ), (state) => state),
+        autonomous(hour >= ROLLOVER_HOUR && hour < 21),
         ensureOperations(env.DB).then(() => env.DB.prepare("DELETE FROM vote_rate WHERE minute < ?")
           .bind(Math.floor(time / 60000) - 120).run()),
       ]);

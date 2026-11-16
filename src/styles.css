@@ -591,3 +591,59 @@ footer { margin-top: 38px; border-top: 1px solid var(--line); padding-top: 14px;
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.vote-confirm {
+  --impact-team: #aa1734;
+  --impact-glow: #ff8190;
+  width: min(93vw, 500px);
+  max-height: calc(100dvh - 24px);
+  padding: 20px clamp(16px, 4vw, 30px) 24px;
+  overflow: auto;
+  border: 2px solid var(--impact-glow);
+  border-radius: 16px;
+  color: #fff;
+  background: radial-gradient(ellipse at 50% 27%, var(--impact-team), #10152e 66%);
+  box-shadow: 0 0 26px color-mix(in srgb, var(--impact-glow), transparent 55%);
+  text-align: center;
+}
+.vote-confirm--blue { --impact-team: #124fa4; --impact-glow: #83c9ff; }
+.vote-confirm::backdrop { background: #060a1ddd; }
+.vote-confirm-stage { position: relative; isolation: isolate; margin: 0 auto; width: min(100%, 310px); height: clamp(130px, 44vw, 240px); }
+.vote-confirm-stage .fighter-pose--guard {
+  left: 50%; right: auto; width: min(64%, 190px); translate: -50% 0;
+  pointer-events: none;
+}
+.vote-confirm-stage .fighter-pose--jab {
+  left: 50%; right: auto; width: min(84%, 249px); translate: -50% 0;
+}
+.vote-confirm h2 { margin: .2rem 0 .55rem; font: italic 900 clamp(33px, 8vw, 65px)/.95 var(--display); text-transform: uppercase; }
+.vote-confirm p { margin: .65rem 0 1rem; color: #eef3ff; }
+.vote-confirm-actions { display: grid; grid-template-columns: 1fr 1.25fr; gap: 10px; }
+.vote-confirm-actions button { min-height: 48px; padding: .4rem; border: 1px solid #a9bad4; border-radius: 6px; color: #fff; background: #25314c; font-weight: 800; }
+.vote-confirm-actions button[data-vote-confirm] { background: var(--impact-team); border-color: var(--impact-glow); }
+.vote-confirm-actions button:disabled { opacity: .6; }
+.vote-confirm[data-phase="locked"] h2 { color: #ffe083; font-size: clamp(42px, 11vw, 88px); text-shadow: 0 3px #9a380b, 0 0 20px #ff982a; }
+.vote-confirm[data-phase="locked"] .vote-confirm-actions { visibility: hidden; }
+@media (prefers-reduced-motion: no-preference) {
+  .vote-confirm[data-phase="ready"] .fighter-pose--guard { animation: vote-hesitate 1.7s ease-in-out infinite; }
+  .vote-confirm[data-phase="locked"] h2 { animation: lock-slam 510ms cubic-bezier(.18, .88, .26, 1.2) both; }
+  .vote-confirm[data-phase="locked"] .fighter-pose--guard { animation: vote-victory 650ms ease-in-out both; }
+  .vote-confirm[data-phase="locked"] .fighter-pose--jab { animation: victory-jab 420ms steps(1, end) both; }
+}
+@keyframes vote-hesitate {
+  0%, 100% { transform: translateY(-3%) rotate(-3deg); }
+  38% { transform: translateY(3%) rotate(4deg) scale(.94); }
+  72% { transform: translateY(-5%) rotate(-1deg) scale(1.035); }
+}
+@keyframes lock-slam {
+  0% { opacity: 0; transform: scale(1.65) rotate(-6deg); }
+  62% { opacity: 1; transform: scale(.91) rotate(2deg); }
+  100% { transform: scale(1); }
+}
+@keyframes vote-victory {
+  0%, 35% { opacity: 0; }
+  42% { opacity: 1; transform: translateY(0) scale(.96); }
+  70% { transform: translateY(-17%) rotate(-6deg) scale(1.12); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes victory-jab { 0% { opacity: 1; } 72%, 100% { opacity: 0; } }

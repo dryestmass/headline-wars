@@ -1,3 +1,4 @@
+import { sprite } from "./fighter-sprite";
 import type { Ballot, Game, Question } from "./model";
 import { questionSource } from "./question-source";
 import { accuracy, type Answer, type Team } from "./scoring";
@@ -109,6 +110,51 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
   let voteTimer: number | undefined;
   let scoreTimer: number | undefined;
   const confirmedBallots = new Map<string, Ballot>();
+  const confirmation = document.createElement("dialog");
+  confirmation.className = `vote-confirm vote-confirm--${team}`;
+  confirmation.setAttribute("aria-labelledby", "vote-confirm-heading");
+  confirmation.setAttribute("aria-describedby", "vote-confirm-message");
+  confirmation.innerHTML = `
+    <div class="vote-confirm-stage">${sprite(team)}</div>
+    <h2 id="vote-confirm-heading"></h2>
+    <p id="vote-confirm-message" role="status"></p>
+    <div class="vote-confirm-actions">
+      <button type="button" data-vote-back>Go back</button>
+      <button type="button" data-vote-confirm>Vote now</button>
+    </div>`;
+  container.after(confirmation);
+  const heading = confirmation.querySelector<HTMLElement>("#vote-confirm-heading")!;
+  const message = confirmation.querySelector<HTMLElement>("#vote-confirm-message")!;
+  const confirmButton = confirmation.querySelector<HTMLButtonElement>("[data-vote-confirm]")!;
+  const backButton = confirmation.querySelector<HTMLButtonElement>("[data-vote-back]")!;
+  let selection: { id: string; answer: Answer } | undefined;
+
+  function confirmVote(id: string, answer: Answer): void {
+    if (submitting || confirmation.open) return;
+    selection = { id, answer };
+    confirmation.dataset.phase = "ready";
+    heading.textContent = `Lock in ${answer.toUpperCase()}?`;
+    message.textContent = `Your pick stays with Team ${team === "red" ? "Red" : "Blue"} once submitted.`;
+    confirmButton.disabled = false;
+    backButton.disabled = false;
+    confirmation.showModal();
+    confirmButton.focus();
+  }
+
+  backButton.addEventListener("click", () => confirmation.close());
+  confirmButton.addEventListener("click", () => {
+    if (selection) void vote(selection.id, selection.answer);
+  });
+  confirmation.addEventListener("cancel", (event) => {
+    if (submitting) event.preventDefault();
+  });
+  confirmation.addEventListener("close", () => {
+    const answer = selection?.answer;
+    selection = undefined;
+    if (lifetime.signal.aborted) return;
+    (container.querySelector<HTMLElement>(".question .ballot-receipt") ??
+      container.querySelector<HTMLElement>(`[data-answer="${answer}"]`))?.focus({ preventScroll: true });
+  });
 
   function animateScore(next: Game["scores"]): void {
     const previous = lastScores;
@@ -150,6 +196,10 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       ...question, ballot: question.ballot ?? confirmedBallots.get(question.id) ?? null,
     }));
     const today = questions.find((question) => question.status === "open");
+    if (selection && !submitting && (today?.id !== selection.id || today.ballot)) {
+      confirmation.close();
+      status.textContent = today?.ballot ? "Your ballot is already recorded." : "Voting closed for that question.";
+    }
     const panel = today ? questionCard(today, true) : element("section", "No prediction is open right now.", "question");
     if (today && !today.ballot) {
       if (!game.votingEnabled || !voter) {
@@ -163,7 +213,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
           button.textContent = answer.toUpperCase();
           button.dataset.answer = answer;
           button.disabled = submitting;
-          button.addEventListener("click", () => void vote(today.id, answer));
+          button.addEventListener("click", () => confirmVote(today.id, answer));
           choices.append(button);
         }
         panel.insertBefore(choices, panel.querySelector(".predictions"));
@@ -243,6 +293,11 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
   async function vote(id: string, answer: Answer): Promise<void> {
     if (submitting) return;
     submitting = true;
+    confirmation.dataset.phase = "sending";
+    message.textContent = "Recording your vote…";
+    confirmButton.disabled = true;
+    backButton.disabled = true;
+    let celebrate = false;
     container.querySelectorAll<HTMLButtonElement>("button").forEach((button) => button.disabled = true);
     delete status.dataset.refreshError;
     delete status.dataset.impact;
@@ -264,23 +319,32 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
           note.focus({ preventScroll: true });
         }
       }
-      if (response.status === 201 && result.ballot) {
-        status.textContent = `${result.ballot.answer.toUpperCase()} LOCKED IN`;
-        status.dataset.impact = result.ballot.team;
+      if (response.ok && result.ballot) {
+        celebrate = true;
+        confirmation.dataset.phase = "locked";
+        heading.textContent = `${result.ballot.answer.toUpperCase()} LOCKED IN`;
+        message.textContent = "Your vote is recorded.";
         window.clearTimeout(voteTimer);
-        voteTimer = window.setTimeout(() => {
-          delete status.dataset.impact;
-          if (status.textContent?.endsWith("LOCKED IN")) status.textContent = "";
-        }, 1400);
+        voteTimer = window.setTimeout(() => confirmation.close(), 1700);
       } else {
-        status.textContent = response.ok ? "Vote recorded." : result.error ?? "Could not submit your vote.";
+        message.textContent = result.error ?? "Could not submit your vote.";
+        if (result.ballot || response.status === 404 || response.status === 409) {
+          confirmation.dataset.phase = "unavailable";
+        }
       }
     } catch {
-      if (!lifetime.signal.aborted) status.textContent = "Could not confirm your vote. You can safely retry.";
+      if (!lifetime.signal.aborted) message.textContent = "Could not confirm your vote. You can safely retry.";
     } finally {
       await pendingRefresh;
       await requestRefresh();
       submitting = false;
+      if (!celebrate) {
+        if (confirmation.dataset.phase !== "unavailable") {
+          confirmation.dataset.phase = "ready";
+          confirmButton.disabled = false;
+        }
+        backButton.disabled = false;
+      }
       container.querySelectorAll<HTMLButtonElement>("button").forEach((button) => button.disabled = false);
     }
   }
@@ -293,6 +357,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
   const timer = window.setInterval(refreshVisible, 10000);
   return () => {
     lifetime.abort();
+    confirmation.remove();
     window.clearInterval(timer);
     window.clearTimeout(voteTimer);
     window.clearTimeout(scoreTimer);

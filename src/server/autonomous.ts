@@ -1,3 +1,4 @@
+import { easternDateTime, nextRollover } from "./rollover";
 import { ensureOperations } from "./operations";
 import type { Answer } from "../game/scoring";
 
@@ -21,7 +22,6 @@ export interface AutonomousSource {
   verify(candidate: Candidate): Promise<VerifiedDecision | null>;
 }
 
-const day = 86400000;
 
 async function ensureRegistry(db: D1Database): Promise<void> {
   await db.prepare(`
@@ -41,7 +41,7 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
   await ensureOperations(db);
   const now = new Date(time);
   const opensAt = now.toISOString();
-  const date = opensAt.slice(0, 10);
+  const date = easternDateTime(time).date;
   const busy = await db.prepare(`
     SELECT 1 FROM autonomous_questions WHERE published_day = ?1
     UNION ALL SELECT 1 FROM questions WHERE status = 'open' AND opens_at <= ?2 AND closes_at > ?2
@@ -58,7 +58,7 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
     if (!/^(?:will|did|does|do|is|are|has|have|can|would)\s+[^?]+\?$/i.test(candidate.prompt.trim())) continue;
     const decision = Date.parse(candidate.decisionAt);
     if (!Number.isFinite(decision) || decision - time < 3600000) continue;
-    const closesAt = new Date(Math.min(time + day, decision - 15 * 60000)).toISOString();
+    const closesAt = new Date(Math.min(nextRollover(time), decision - 15 * 60000)).toISOString();
     const [insert] = await db.batch([
       db.prepare(`
         INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
@@ -111,7 +111,7 @@ export async function resolveDue(
   if (failures.length) throw new Error(`${failures.length} autonomous evidence checks failed`);
 }
 
-export async function runAutonomousCycle(db: D1Database, source: AutonomousSource, time: number): Promise<string> {
+export async function runAutonomousCycle(db: D1Database, source: AutonomousSource, time: number, publish = true): Promise<string> {
   await ensureRegistry(db);
   await ensureOperations(db);
   const { results } = await db.prepare(`
@@ -122,7 +122,7 @@ export async function runAutonomousCycle(db: D1Database, source: AutonomousSourc
     ORDER BY a.checked_at, a.decision_at, a.id
     LIMIT 10
   `).bind(new Date(time).toISOString()).all<Candidate>();
-  const tasks = await Promise.allSettled([resolveDue(db, source, results, time), publishDaily(db, source, time)]);
+  const tasks = await Promise.allSettled([resolveDue(db, source, results, time), publish ? publishDaily(db, source, time) : Promise.resolve("waiting-for-rollover")]);
   const [resolution, publication] = tasks;
   if (resolution.status === "rejected") throw resolution.reason;
   if (publication.status === "rejected") throw publication.reason;
