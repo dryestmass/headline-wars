@@ -1,7 +1,7 @@
 import { DAILY_ROLLOVER, easternDateTime, ROLLOVER_HOUR } from "./rollover";
 import { allowVote, ensureOperations, readHealth, trackJob } from "./operations";
 import { EVIDENCE_REFRESH, runEditorialJob } from "./editorial";
-import { prepareDaily, runAutonomousCycle } from "./autonomous";
+import { prepareDaily, refillUpcomingQueue, runAutonomousCycle } from "./autonomous";
 import { congressSource } from "./congress";
 import type { Ballot, Game, Question } from "../game/model";
 import { winner, type Answer, type Team } from "../game/scoring";
@@ -158,7 +158,11 @@ export default {
     const autonomous = (publish: boolean) => trackJob(env.DB, "congressional", time,
       () => runAutonomousCycle(env.DB, source, time, publish), (state) => state);
     if (controller.cron === DAILY_ROLLOVER) {
-      if (hour === ROLLOVER_HOUR) await autonomous(true);
+      if (hour === ROLLOVER_HOUR) {
+        await autonomous(true);
+        await trackJob(env.DB, "question-queue", time,
+          () => refillUpcomingQueue(env.DB, source, time), (state) => state);
+      }
       return;
     }
     const editorial = trackJob(env.DB, controller.cron === EVIDENCE_REFRESH ? "evidence" : "federal",
