@@ -140,6 +140,7 @@ function home(fighter: Fighter): void {
         <summary>How it works</summary>
         <ol>
           <li>Choose a fighter to join Team Red or Team Blue. No account is needed.</li>
+          <li>The daily question is scheduled to switch at 3 p.m. Eastern / noon Pacific. Voting usually closes at the switch. Some questions close earlier, so check the deadline shown on the question.</li>
           <li>Vote YES or NO before the deadline. You get one vote per question in this browser, and it locks in when you confirm.</li>
           <li>After voting closes, the question stays in Pending Questions until the outcome can be verified. Verified Results links to the source.</li>
           <li>The team with the higher percentage of correct votes earns one headline. Ties award no point, and a team needs at least one vote to be eligible.</li>
