@@ -311,9 +311,11 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
     const focused = document.activeElement;
     const answer = focused instanceof HTMLElement ? focused.dataset.answer : undefined;
     const summary = focused?.tagName === "SUMMARY" ? focused.parentElement?.dataset.archive : null;
+    if (voteShortcut) panel.prepend(voteShortcut);
     container.replaceChildren(panel, archive);
     const ballot = panel.querySelector<HTMLElement>(".choices");
     if (voteShortcut) voteShortcut.hidden = !ballot;
+    if (voteShortcut && focused === voteShortcut && !voteShortcut.hidden) voteShortcut.focus({ preventScroll: true });
     if (focused?.classList.contains("choices")) ballot?.focus({ preventScroll: true });
     if (focused?.classList.contains("ballot-receipt")) {
       container.querySelector<HTMLElement>(".question .ballot-receipt")?.focus({ preventScroll: true });
