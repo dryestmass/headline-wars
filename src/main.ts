@@ -28,6 +28,13 @@ function panel(team: Team, chosen: Fighter): string {
   </fieldset>`;
 }
 
+function sprite(team: Team): string {
+  return `<div class="fighter-sprite fighter-sprite--${team}" aria-hidden="true">
+    <span class="fighter-pose fighter-pose--guard"></span>
+    <span class="fighter-pose fighter-pose--jab"></span>
+  </div>`;
+}
+
 function selection(initial = remembered() ?? fighters.red[1]): void {
   let chosen = initial;
   app.innerHTML = `<main class="arena"><header>
@@ -38,9 +45,9 @@ function selection(initial = remembered() ?? fighters.red[1]): void {
       <div class="matchup">
         ${panel("red", chosen)}
         <div class="fight-art" role="img" aria-label="Red elephant and Blue donkey facing off in a boxing ring">
-          <div class="fighter-sprite fighter-sprite--red"></div>
-          <div class="fighter-burst"></div>
-          <div class="fighter-sprite fighter-sprite--blue"></div>
+          ${sprite("red")}
+          <div class="fighter-burst" aria-hidden="true">VS</div>
+          ${sprite("blue")}
         </div>
         ${panel("blue", chosen)}
       </div>
@@ -49,19 +56,26 @@ function selection(initial = remembered() ?? fighters.red[1]): void {
     </form></main>`;
   const form = app.querySelector("form")!;
   const join = form.querySelector<HTMLButtonElement>(".join")!;
-  const animations: Partial<Record<Team, Animation>> = {};
+  const animations: Partial<Record<Team, Animation[]>> = {};
   function react(team: Team) {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const sprite = form.querySelector<HTMLElement>(`.fighter-sprite--${team}`);
-    if (!sprite?.animate) return;
-    const direction = team === "red" ? 1 : -1;
-    animations[team]?.cancel();
-    animations[team] = sprite.animate([
-      { transform: "translate(0, 0) scale(1)" },
-      { transform: `translate(${-direction * 2}%, 2%) scale(.98)`, offset: .23 },
-      { transform: `translate(${direction * 5}%, -4%) scale(1.055)`, offset: .52 },
-      { transform: "translate(0, 0) scale(1)" },
-    ], { duration: 420, easing: "cubic-bezier(.2, .75, .25, 1)" });
+    const guard = form.querySelector<HTMLElement>(`.fighter-sprite--${team} .fighter-pose--guard`);
+    const jab = form.querySelector<HTMLElement>(`.fighter-sprite--${team} .fighter-pose--jab`);
+    if (!guard?.animate || !jab?.animate) return;
+    animations[team]?.forEach((animation) => animation.cancel());
+    const timing = { duration: 380 };
+    animations[team] = [
+      guard.animate([
+        { opacity: 1, offset: 0, easing: "steps(1, end)" },
+        { opacity: 0, offset: .24, easing: "steps(1, end)" },
+        { opacity: 1, offset: .65 },
+      ], timing),
+      jab.animate([
+        { opacity: 0, offset: 0, easing: "steps(1, end)" },
+        { opacity: 1, offset: .24, easing: "steps(1, end)" },
+        { opacity: 0, offset: .65 },
+      ], timing),
+    ];
   }
   function update() {
     form.dataset.team = chosen.team;
@@ -101,7 +115,7 @@ function choose(fighter: Fighter): void {
   const stage = arena.querySelector<HTMLElement>("form")!;
   stage.inert = true;
   arena.insertAdjacentHTML("beforeend", `<section class="welcome welcome--${fighter.team}" role="status">
-    <div class="welcome-art" aria-hidden="true"></div>
+    <div class="welcome-art" aria-hidden="true">${sprite(fighter.team)}</div>
     <strong>WELCOME TO TEAM ${fighter.team.toUpperCase()}</strong><span>${fighter.name}</span>
   </section>`);
   window.setTimeout(() => home(fighter), 1400);

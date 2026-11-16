@@ -62,53 +62,85 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 }
 
 .fight-art {
-  display: grid;
-  grid-template-columns: 475fr 100fr 467fr;
+  position: relative;
   width: 100%;
-  aspect-ratio: 1042 / 382;
-  overflow: hidden;
+  aspect-ratio: 2.4;
   isolation: isolate;
-  background: #101738;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 20% 65%, #820a35 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 62%, #1347a7 0%, transparent 45%),
+    linear-gradient(180deg, #111a3b, #090d26 73%, #211936);
+}
+.fight-art::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 3%;
+  height: 23%;
+  background: repeating-linear-gradient(to bottom, transparent 0 24%, #7d8cbc 25% 28%, transparent 29% 44%);
+  opacity: .56;
 }
 
-.fighter-sprite, .fighter-burst {
-  min-width: 0;
-  background-image: url("/art/fighter-mockup.webp");
-  background-repeat: no-repeat;
-  background-position-y: 36.7%;
-  transition: translate .22s ease, filter .22s ease;
+.fighter-sprite {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
-
-.fighter-sprite--red {
-  background-size: 352% 246.34%;
-  background-position-x: 26.73%;
-  transform-origin: 42% 70%;
+.fighter-pose {
+  position: absolute;
+  bottom: 3%;
+  background: url("/art/fighter-poses.webp") var(--frame-position) / var(--frame-size) no-repeat;
+  filter: drop-shadow(0 0 6px var(--sprite-glow));
+  transform-origin: center bottom;
 }
+.fighter-pose--jab { opacity: 0; }
+.fighter-sprite--red { --sprite-glow: #ff384c; }
+.fighter-sprite--blue { --sprite-glow: #3395ff; }
+.fighter-sprite--red .fighter-pose--guard {
+  left: 3%; width: 36%; aspect-ratio: 535 / 520;
+  --frame-position: 0 6.81%; --frame-size: 234.39% 241.15%;
+}
+.fighter-sprite--red .fighter-pose--jab {
+  left: 4.5%; width: 47.4%; aspect-ratio: 704 / 520;
+  --frame-position: 100% 6.81%; --frame-size: 178.13% 241.15%;
+}
+.fighter-sprite--blue .fighter-pose--guard {
+  right: 3%; width: 30.8%; aspect-ratio: 500 / 565;
+  --frame-position: 0 89.99%; --frame-size: 250.8% 221.95%;
+}
+.fighter-sprite--blue .fighter-pose--jab {
+  right: 2.8%; width: 45.5%; aspect-ratio: 739 / 565;
+  --frame-position: 100% 89.99%; --frame-size: 169.69% 221.95%;
+}
+.fighter-pose--guard { pointer-events: auto; }
 
 .fighter-burst {
-  z-index: 1;
+  position: absolute;
+  z-index: -1;
+  display: grid;
+  place-items: center;
+  top: 47%;
+  left: 50%;
+  width: clamp(43px, 12%, 95px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  clip-path: var(--burst);
+  background: radial-gradient(#ffe789 24%, #ff8c21 62%, #ac1531);
+  color: #20132d;
+  font: italic 900 clamp(20px, 3.5vw, 43px)/1 var(--display);
   pointer-events: none;
-  background-size: 1672% 246.34%;
-  background-position-x: 50.57%;
-}
-
-.fighter-sprite--blue {
-  background-size: 358.03% 246.34%;
-  background-position-x: 74.27%;
-  transform-origin: 58% 70%;
 }
 
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .fighter-sprite:hover,
-  .matchup:has(.team-picker--red .fighter-option:hover) .fighter-sprite--red,
-  .matchup:has(.team-picker--blue .fighter-option:hover) .fighter-sprite--blue {
-    translate: 0 -3%;
-    filter: brightness(1.11) saturate(1.12);
+  .fighter-pose--guard:hover,
+  .matchup:has(.team-picker--red .fighter-option:hover) .fighter-sprite--red .fighter-pose--guard,
+  .matchup:has(.team-picker--blue .fighter-option:hover) .fighter-sprite--blue .fighter-pose--guard {
+    animation: guard-bob .8s ease-in-out infinite alternate;
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .fighter-sprite { transition: none; }
+@keyframes guard-bob {
+  from { transform: rotate(-1deg); }
+  to { transform: translateY(-3%) rotate(1.5deg); }
 }
 
 .team-picker {
@@ -184,13 +216,10 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   animation: punch-in .32s ease-out both;
 }
 .welcome--blue { background: radial-gradient(ellipse at center, #164ca9, #08091d 72%); }
-.welcome-art {
-  width: min(90vw, 450px);
-  aspect-ratio: 479 / 380;
-  background: url("/art/fighter-mockup.webp") 28.8% 37.5% / 349.1% 247.6% no-repeat;
-  border-radius: 18px;
-}
-.welcome--blue .welcome-art { background-position-x: 75.4%; }
+.welcome-art { position: relative; width: min(86vw, 430px); aspect-ratio: 1.16; }
+.welcome-art .fighter-pose--guard { width: 92%; left: 4%; right: auto; }
+.welcome-art .fighter-pose--jab { display: none; }
+
 .welcome strong { font: italic 900 clamp(32px, 7vw, 78px)/1 var(--display); color: #ffe286; }
 .welcome span { font-size: clamp(16px, 3vw, 26px); font-weight: 800; }
 @keyframes punch-in { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }
