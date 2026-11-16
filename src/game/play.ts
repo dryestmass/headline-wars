@@ -105,7 +105,45 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
   let snapshot = "";
   let pendingRefresh: Promise<void> | undefined;
   let submitting = false;
+  let lastScores: Game["scores"] | undefined;
+  let voteTimer: number | undefined;
+  let scoreTimer: number | undefined;
   const confirmedBallots = new Map<string, Ballot>();
+
+  function animateScore(next: Game["scores"]): void {
+    const previous = lastScores;
+    lastScores = { ...next };
+    if (!previous) return;
+    const other = team === "red" ? "blue" : "red";
+    const changes = (["red", "blue"] as const).map((side) => [side, next[side] - previous[side]] as const);
+    if (!changes.some(([, change]) => change)) return;
+    const own = next[team] - previous[team];
+    const rival = next[other] - previous[other];
+    score.dataset.impact = own === rival ? "neutral" : own > rival ? "win" : "loss";
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      for (const [side, delta] of changes) {
+        const reaction = delta || (side === team && rival > own ? -1 : 0);
+        if (!reaction) continue;
+        const panel = score.querySelector<HTMLElement>(`.score-panel--${side}`);
+        panel?.animate?.(reaction > 0
+          ? [{ transform: "scale(1)" }, { transform: "scale(1.075)" }, { transform: "scale(1)" }]
+          : [{ transform: "translateX(0)" }, { transform: "translateX(-4px)" },
+             { transform: "translateX(4px)" }, { transform: "translateX(0)" }],
+        { duration: 460, easing: "ease-out" });
+      }
+    }
+    const feedback = score.querySelector("[data-score-feedback]");
+    if (feedback) {
+      feedback.textContent = changes.filter(([, delta]) => delta)
+        .map(([side, delta]) => `${side === "red" ? "Red" : "Blue"} ${delta > 0 ? "+" : "−"}${Math.abs(delta)}`)
+        .join(" · ");
+    }
+    window.clearTimeout(scoreTimer);
+    scoreTimer = window.setTimeout(() => {
+      delete score.dataset.impact;
+      if (feedback) feedback.textContent = "";
+    }, 1600);
+  }
 
   function render(game: Game): void {
     const questions = game.questions.map((question) => ({
@@ -165,6 +203,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       lead.textContent = difference === 0 ? "TEAMS TIED" :
         `${difference > 0 ? "RED" : "BLUE"} LEADS BY ${Math.abs(difference)} ${Math.abs(difference) === 1 ? "HEADLINE" : "HEADLINES"}`;
     }
+    animateScore(game.scores);
     for (const side of ["red", "blue"] as const) {
       const total = score.querySelector(`[data-score="${side}"]`);
       if (total) total.textContent = String(game.scores[side]);
@@ -188,6 +227,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       }
     } catch {
       if (!lifetime.signal.aborted) {
+        delete status.dataset.impact;
         status.dataset.refreshError = "true";
         status.textContent = "Could not load updates. Retrying shortly.";
         if (!snapshot) container.textContent = "";
@@ -205,6 +245,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
     submitting = true;
     container.querySelectorAll<HTMLButtonElement>("button").forEach((button) => button.disabled = true);
     delete status.dataset.refreshError;
+    delete status.dataset.impact;
     status.textContent = "";
     try {
       const response = await fetch(`/api/questions/${encodeURIComponent(id)}/vote`, {
@@ -223,7 +264,17 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
           note.focus({ preventScroll: true });
         }
       }
-      status.textContent = response.ok ? "Vote recorded." : result.error ?? "Could not submit your vote.";
+      if (response.status === 201 && result.ballot) {
+        status.textContent = `${result.ballot.answer.toUpperCase()} LOCKED IN`;
+        status.dataset.impact = result.ballot.team;
+        window.clearTimeout(voteTimer);
+        voteTimer = window.setTimeout(() => {
+          delete status.dataset.impact;
+          if (status.textContent?.endsWith("LOCKED IN")) status.textContent = "";
+        }, 1400);
+      } else {
+        status.textContent = response.ok ? "Vote recorded." : result.error ?? "Could not submit your vote.";
+      }
     } catch {
       if (!lifetime.signal.aborted) status.textContent = "Could not confirm your vote. You can safely retry.";
     } finally {
@@ -243,5 +294,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
   return () => {
     lifetime.abort();
     window.clearInterval(timer);
+    window.clearTimeout(voteTimer);
+    window.clearTimeout(scoreTimer);
   };
 }

@@ -213,15 +213,16 @@ test("runs discovery, approval, voting, evidence, and scoring as one lifecycle",
 test("the autonomous sequence rotates the daily question and verifies a pending one only when due", async () => {
   const isolated = await getPlatformProxy<Env>({ persist: false });
   const db = isolated.env.DB;
-  const first = { id: "rotation-first", prompt: "Synthetic first question", criteria: "Synthetic evidence",
+  const first = { id: "rotation-first", prompt: "Will the first synthetic event happen?", criteria: "Synthetic evidence",
     decisionAt: "2024-05-02T15:00:00.000Z" };
-  const second = { ...first, id: "rotation-second", prompt: "Synthetic second question",
+  const second = { ...first, id: "rotation-second", prompt: "Will the second synthetic event happen?",
     decisionAt: "2024-05-03T15:00:00.000Z" };
   const sourceUrl = "https://example.test/official-fixture";
   let evidenceAvailable = false;
   let evidenceChecks = 0;
   const source: AutonomousSource = {
-    discover: async (now) => now.getUTCDate() === 1 ? [first] : [first, second],
+    discover: async (now) => now.getUTCDate() === 1
+      ? [{ ...first, id: "invalid-draft", prompt: "What will happen?" }, first] : [first, second],
     verify: async () => {
       evidenceChecks++;
       return evidenceAvailable ? { outcome: "yes", sourceUrl } : null;
@@ -240,6 +241,7 @@ test("the autonomous sequence rotates the daily question and verifies a pending 
     await runAutonomousCycle(db, source, dayOne);
     await runAutonomousCycle(db, source, dayOne);
     expect(await phase(first.id, dayOne)).toBe("open");
+    expect(await phase("invalid-draft", dayOne)).toBeNull();
     await db.prepare("INSERT INTO votes (question_id, voter_hash, team, answer) VALUES (?, 'fixture-red', 'red', 'yes')")
       .bind(first.id).run();
     await runAutonomousCycle(db, source, dayTwo);

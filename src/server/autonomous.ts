@@ -54,6 +54,8 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
 
   const candidates = await source.discover(now);
   for (const candidate of candidates) {
+    // Source templates express one binary event. Reject unexpected prompt shapes before publication.
+    if (!/^(?:will|did|does|do|is|are|has|have|can|would)\s+[^?]+\?$/i.test(candidate.prompt.trim())) continue;
     const decision = Date.parse(candidate.decisionAt);
     if (!Number.isFinite(decision) || decision - time < 3600000) continue;
     const closesAt = new Date(Math.min(time + day, decision - 15 * 60000)).toISOString();

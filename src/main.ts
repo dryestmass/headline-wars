@@ -134,6 +134,7 @@ function home(fighter: Fighter): void {
         <div class="score-panel score-panel--blue"><span>BLUE TEAM</span><strong data-score="blue">–</strong></div>
       </div>
       <p class="score-lead" data-score-lead>HEADLINES WON</p>
+      <p class="score-feedback" data-score-feedback role="status"></p>
     </section>
     <div class="identity"><span>${fighter.name} · Team ${fighter.team.toUpperCase()}</span><button id="change-side">Change fighter</button></div>
     <p id="game-status" role="status"></p>
