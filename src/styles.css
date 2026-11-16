@@ -725,10 +725,30 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .resolution-rules p { text-align: left; }
 
 .vote-shortcut {
-  --accent: #ffc65d;
-  --deep: #761b32;
+  position: relative;
   width: 100%;
-  min-height: 64px;
+  min-height: 62px;
   margin: 0 auto 16px;
+  padding: 12px 58px;
+  border: 1px solid #252943;
+  border-radius: 12px;
+  background: linear-gradient(105deg, #9e1939 0 5px, #191a30 5px 50%, #202a4d 50% calc(100% - 5px), #377def 0);
+  color: #fff;
+  font: 800 clamp(21px, 3vw, 29px)/1.1 "DM Sans", sans-serif;
 }
-.vote-shortcut span { margin-inline-start: .25em; }
+.vote-shortcut span {
+  position: absolute;
+  inset-inline-end: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ffdb72;
+  color: #191a30;
+  font-size: 23px;
+}
+.vote-shortcut:hover { filter: brightness(1.28); }
+.vote-shortcut:focus-visible { outline: 3px solid #377def; outline-offset: 3px; }

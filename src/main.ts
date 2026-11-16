@@ -122,7 +122,7 @@ function choose(fighter: Fighter): void {
 function home(fighter: Fighter): void {
   app.innerHTML = `<main class="home">
     <header class="top"><div class="sound-row">${soundButton()}</div><div class="wordmark" role="img" aria-label="Headline Wars"></div></header>
-    <button type="button" class="join vote-shortcut" id="vote-shortcut" hidden>Vote now <span aria-hidden="true">↓</span></button>
+    <button type="button" class="vote-shortcut" id="vote-shortcut" hidden>Vote now <span aria-hidden="true">↓</span></button>
     <section class="scoreboard" aria-label="Headlines won by team">
       <div class="scores">
         <div class="score-panel score-panel--red"><span>RED TEAM</span><strong data-score="red">–</strong></div>
