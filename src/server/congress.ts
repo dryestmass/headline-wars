@@ -1,3 +1,4 @@
+import { administrationSource } from "./administration";
 import type { AutonomousSource, Candidate } from "./autonomous";
 import { houseSource } from "./house";
 import { senateSource } from "./senate";
@@ -8,19 +9,21 @@ export function congressSource(
 ): AutonomousSource {
   const senate = senateSource(fetchSource);
   const house = houseSource(fetchSource);
+  const administration = administrationSource(fetchSource);
   return {
     async discover(now) {
       const results = await Promise.allSettled([observe("senate", () => senate.discover(now)), observe("house", () => house.discover(now))]);
       const candidates = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
       const failed = results.filter((result) => result.status === "rejected");
-      if (failed.length === results.length) throw new Error("Both congressional schedule sources failed");
+      const executive = await administration.discover(now);
+      if (failed.length === results.length && !executive.length) throw new Error("Both congressional schedule sources failed");
       if (failed.length) console.warn("A congressional schedule source failed");
-      return candidates;
+      return [...executive, ...candidates];
     },
     verify(candidate) {
       if (candidate.id.startsWith("senate-")) return senate.verify(candidate);
       if (candidate.id.startsWith("house-")) return house.verify(candidate);
-      return Promise.resolve(null);
+      return administration.verify(candidate);
     },
   };
 }

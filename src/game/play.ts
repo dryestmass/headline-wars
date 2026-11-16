@@ -92,7 +92,10 @@ function questionCard(question: Question, today: boolean): HTMLElement {
     ? "Will the FAA make its proposed Boeing 787-8 safety fix mandatory by February 14, 2027?"
     : houseBill ? `Will the House pass ${houseBill[2]}?` : question.prompt;
   card.append(element(today ? "h1" : "h2", prompt));
-  if (boeingProposal) {
+  const promise = /\nBackground: ([^\n]+)\nPromise source: (https:\/\/[^\s]+)$/.exec(question.criteria);
+  if (promise) {
+    card.append(element("p", promise[1]), sourceLink(promise[2], "Read the original statement"));
+  } else if (boeingProposal) {
     card.append(element("p", "The FAA proposed fixing certain wing fasteners to improve lightning protection. Vote YES if you think the final rule will be published by February 14, or NO if you think it won't."));
     card.append(sourceLink("https://www.govinfo.gov/content/pkg/FR-2026-11-13/pdf/2026-23198.pdf", "Read the FAA proposal"));
   } else if (source.url) {
@@ -101,9 +104,9 @@ function questionCard(question: Question, today: boolean): HTMLElement {
       : "The Senate floor schedule lists this nomination for consideration. Vote YES if you think the Senate will approve the nominee, or NO if you think it will vote to reject them."));
     card.append(sourceLink(source.url, "Read the official floor schedule"));
   }
-  if (boeingProposal || source.url) {
+  if (boeingProposal || source.url || promise) {
     const rules = element("details", undefined, "resolution-rules");
-    rules.append(element("summary", "How this vote is decided"), element("p", source.criteria));
+    rules.append(element("summary", "How this vote is decided"), element("p", promise ? question.criteria.slice(0, promise.index) : source.criteria));
     card.append(rules);
   } else {
     card.append(element("p", source.criteria));
