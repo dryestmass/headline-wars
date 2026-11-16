@@ -4,6 +4,25 @@ import type { Ballot, Game, Question } from "./model";
 import { questionSource } from "./question-source";
 import { accuracy, type Answer, type Team } from "./scoring";
 
+const voteLabels = [
+  { yes: "Hell yes", no: "Hell no" },
+  { yes: "Yes, duh", no: "When pigs fly" },
+  { yes: "Bet on it", no: "When hell freezes over" },
+  { yes: "Oh, absolutely", no: "Not a chance" },
+  { yes: "You bet", no: "Yeah, right" },
+  { yes: "Count on it", no: "Dream on" },
+  { yes: "It’s happening", no: "In another universe" },
+  { yes: "All day", no: "Hard pass" },
+] as const;
+
+function labelsForQuestion(id: string) {
+  let index = 0;
+  for (const character of id) {
+    index = (Math.imul(index, 31) + character.charCodeAt(0)) >>> 0;
+  }
+  return voteLabels[index % voteLabels.length];
+}
+
 const voterKey = "headline-wars:voter";
 
 function browserVoter(): string | null {
@@ -249,9 +268,11 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
         const choices = element("div", undefined, "choices");
         choices.setAttribute("role", "group");
         choices.setAttribute("aria-label", `Vote for Team ${team === "red" ? "Red" : "Blue"}`);
+        const labels = labelsForQuestion(today.id);
         for (const answer of ["yes", "no"] as const) {
           const button = document.createElement("button");
-          button.textContent = answer.toUpperCase();
+          button.append(element("small", answer.toUpperCase()), document.createElement("br"),
+            document.createTextNode(labels[answer]));
           button.dataset.answer = answer;
           button.disabled = submitting;
           button.addEventListener("click", () => confirmVote(today.id, answer));
