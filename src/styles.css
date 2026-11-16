@@ -727,14 +727,22 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .vote-shortcut {
   position: relative;
   width: 100%;
-  min-height: 62px;
+  min-height: 66px;
   margin: 0 auto 16px;
-  padding: 12px 58px;
-  border: 1px solid #252943;
-  border-radius: 12px;
-  background: linear-gradient(105deg, #9e1939 0 5px, #191a30 5px 50%, #202a4d 50% calc(100% - 5px), #377def 0);
-  color: #fff;
-  font: 800 clamp(21px, 3vw, 29px)/1.1 "DM Sans", sans-serif;
+  padding: 12px 62px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(112deg, transparent 0 18px, #ffffff12 18px 21px, transparent 21px 35px) left / 29% 100% no-repeat padding-box,
+    repeating-linear-gradient(112deg, transparent 0 18px, #ffffff12 18px 21px, transparent 21px 35px) right / 29% 100% no-repeat padding-box,
+    linear-gradient(105deg, #751332, #181a32 42% 58%, #153f82) padding-box,
+    linear-gradient(100deg, #ff6980, #e5c5ff 50%, #66c5ff) border-box;
+  box-shadow: 0 4px #17182c, 0 0 16px #6253b04d;
+  color: #fff8e5;
+  font: 900 italic clamp(25px, 4vw, 36px)/1 var(--display);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-shadow: 0 2px #17182c;
 }
 .vote-shortcut span {
   position: absolute;
@@ -745,13 +753,19 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: 8px;
   background: #ffdb72;
+  box-shadow: 0 2px #9a6328;
   color: #191a30;
-  font-size: 23px;
+  font: 800 23px/1 "DM Sans", sans-serif;
+  text-shadow: none;
 }
-.vote-shortcut:hover { filter: brightness(1.28); }
+.vote-shortcut:is(:hover, :focus-visible) { filter: brightness(1.2); }
 .vote-shortcut:focus-visible { outline: 3px solid #377def; outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) {
+  .vote-shortcut span { transition: transform 150ms ease-out; }
+  .vote-shortcut:is(:hover, :focus-visible) span { transform: translateY(calc(-50% + 4px)); }
+}
 
 .vote-phrase, .vote-answer { display: block; }
 .vote-answer {
