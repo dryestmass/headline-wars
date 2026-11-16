@@ -37,14 +37,19 @@ function results(question: Question): HTMLElement {
     const percentage = total ? Math.round(100 * yes / total) : 0;
     const item = element("li", undefined, `team-tally team-tally--${team}`);
     const caption = element("div", undefined, "tally-caption");
-    caption.append(element("strong", team.toUpperCase()),
-      element("span", total ? `${percentage}% YES · ${100 - percentage}% NO` : "No votes yet"));
-    const bar = element("div", undefined, "tally-track");
-    bar.setAttribute("aria-hidden", "true");
-    const fill = element("span");
-    fill.style.width = `${percentage}%`;
-    bar.append(fill);
-    item.append(caption, bar);
+    caption.append(element("strong", team.toUpperCase()));
+    item.append(caption);
+    if (total) {
+      const labels = element("div", undefined, "tally-labels");
+      labels.append(element("span", `YES ${percentage}%`, "tally-yes"),
+        element("span", `NO ${100 - percentage}%`, "tally-no"));
+      const bar = element("div", undefined, "tally-track");
+      bar.setAttribute("aria-hidden", "true");
+      bar.style.setProperty("--yes-share", `${100 * yes / total}%`);
+      item.append(labels, bar);
+    } else {
+      item.append(element("small", "No votes yet"));
+    }
     if (question.status === "resolved" && question.outcome && total) {
       const { correct } = accuracy(question.votes[team], question.outcome);
       item.append(element("small", `${correct} of ${total} correct`));
