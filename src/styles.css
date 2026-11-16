@@ -323,7 +323,6 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .archive-count { margin-left: .45rem; color: var(--muted); font-size: .85em; }
 .archive-entry { padding: .7rem 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
 .archive-entry h2 { font-size: 1.15rem; }
-footer { margin-top: 38px; border-top: 1px solid var(--line); padding-top: 14px; color: var(--muted); text-align: center; font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; }
 
 @media (max-width: 700px) {
   .arena { padding-top: 16px; }
@@ -647,3 +646,10 @@ footer { margin-top: 38px; border-top: 1px solid var(--line); padding-top: 14px;
   100% { transform: translateY(0) scale(1); }
 }
 @keyframes victory-jab { 0% { opacity: 1; } 72%, 100% { opacity: 0; } }
+
+.game-rules { border-bottom: 1px solid var(--line); }
+.game-rules summary { min-height: 48px; padding: .85rem .25rem; cursor: pointer; font-weight: 800; }
+.game-rules ol { margin: 0 0 1rem; padding-left: 1.65rem; }
+.game-rules li + li { margin-top: .5rem; }
+.sponsor:not([hidden]) { margin: 1rem 0; padding: .75rem; border: 1px solid var(--line); text-align: center; }
+.sponsor a { display: block; color: inherit; overflow-wrap: anywhere; }

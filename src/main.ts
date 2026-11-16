@@ -1,3 +1,4 @@
+import { mountSponsor } from "./game/sponsor";
 import { fighters, type Fighter, type Team } from "./fighters";
 import { sprite } from "./game/fighter-sprite";
 import { startGame } from "./game/play";
@@ -133,8 +134,20 @@ function home(fighter: Fighter): void {
     <div class="identity"><span>${fighter.name} · Team ${fighter.team.toUpperCase()}</span><button id="change-side">Change fighter</button></div>
     <p id="game-status" role="status"></p>
     <div id="game">Loading predictions.</div>
-    <footer>One question a day · Real-world results</footer>
+    <aside class="sponsor" aria-label="Advertisement" hidden></aside>
+    <section class="game-rules">
+      <details>
+        <summary>How it works</summary>
+        <ol>
+          <li>Choose a fighter to join Team Red or Team Blue. No account is needed.</li>
+          <li>Vote YES or NO before the deadline. You get one vote per question in this browser, and it locks in when you confirm.</li>
+          <li>After voting closes, the question stays in Pending Questions until the outcome can be verified. Verified Results links to the source.</li>
+          <li>The team with the higher percentage of correct votes earns one headline. Ties award no point, and a team needs at least one vote to be eligible.</li>
+        </ol>
+      </details>
+    </section>
   </main>`;
+  mountSponsor(app.querySelector<HTMLElement>(".sponsor")!);
   const stop = startGame(
     app.querySelector<HTMLElement>("#game")!,
     app.querySelector<HTMLElement>(".scoreboard")!,

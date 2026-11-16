@@ -9,6 +9,7 @@ export interface Question {
   id: string;
   prompt: string;
   criteria: string;
+  opensAt: string;
   closesAt: string;
   status: "open" | "closed" | "resolved" | "void";
   outcome: Answer | null;

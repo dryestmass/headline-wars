@@ -16,6 +16,7 @@ interface QuestionRow {
   id: string;
   prompt: string;
   criteria: string;
+  opens_at: string;
   closes_at: string;
   status: Question["status"];
   outcome: Answer | null;
@@ -50,7 +51,7 @@ async function hashVoter(secret: string, identifier: string): Promise<string> {
 async function readGame(db: D1Database, hash: string, votingEnabled: boolean, now: string): Promise<Game> {
   await ensureOperations(db);
   const { results } = await db.prepare(`
-    SELECT q.id, q.prompt, q.criteria, q.closes_at, q.status,
+    SELECT q.id, q.prompt, q.criteria, q.opens_at, q.closes_at, q.status,
       COALESCE(edit.outcome, q.outcome) AS outcome, COALESCE(edit.source_url, q.source_url) AS source_url,
       COUNT(CASE WHEN v.team = 'red' AND v.answer = 'yes' THEN 1 END) AS red_yes,
       COUNT(CASE WHEN v.team = 'red' AND v.answer = 'no' THEN 1 END) AS red_no,
@@ -79,7 +80,7 @@ async function readGame(db: D1Database, hash: string, votingEnabled: boolean, no
     if (winningTeam === "red" || winningTeam === "blue") game.scores[winningTeam]++;
     if (status === "resolved" && archived++ >= 50) continue;
     game.questions.push({
-      id: row.id, prompt: row.prompt, criteria: row.criteria, closesAt: row.closes_at,
+      id: row.id, prompt: row.prompt, criteria: row.criteria, opensAt: row.opens_at, closesAt: row.closes_at,
       status, outcome: row.outcome, sourceUrl: row.source_url, votes, winner: winningTeam,
       ballot: row.voter_team && row.voter_answer ? { team: row.voter_team, answer: row.voter_answer } : null,
     });

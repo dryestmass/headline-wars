@@ -72,7 +72,19 @@ function receipt(ballot: Ballot): HTMLElement {
 
 function questionCard(question: Question, today: boolean): HTMLElement {
   const card = element(today ? "section" : "article", undefined, today ? "question" : "archive-entry");
-  if (today) card.append(element("p", "TODAY'S PREDICTION", "eyebrow"));
+  if (today) {
+    const label = element("p", "Today's prediction", "eyebrow");
+    const opened = new Date(question.opensAt);
+    if (Number.isFinite(opened.getTime())) {
+      const date = document.createElement("time");
+      date.dateTime = question.opensAt;
+      date.textContent = opened.toLocaleDateString("en-US", {
+        month: "long", day: "numeric", timeZone: "America/New_York",
+      });
+      label.append(" · ", date);
+    }
+    card.append(label);
+  }
   const source = questionSource(question.criteria);
   card.append(element(today ? "h1" : "h2", question.prompt), element("p", source.criteria));
   if (source.url) card.append(sourceLink(source.url, "Official floor schedule"));
