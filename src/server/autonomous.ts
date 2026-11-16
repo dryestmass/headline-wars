@@ -58,18 +58,18 @@ export async function prepareDaily(db: D1Database, source: AutonomousSource, tim
   return "prepared";
 }
 
-export async function publishDaily(db: D1Database, source: AutonomousSource, time: number): Promise<string> {
+export async function publishDaily(db: D1Database, source: AutonomousSource, time: number, slot = time): Promise<string> {
   await ensureRegistry(db);
   await ensureOperations(db);
   const now = new Date(time);
   const occupiedUntil = await db.prepare(`
     SELECT MAX(closes_at) AS closes_at FROM questions
     WHERE status = 'open' AND opens_at <= ?1 AND closes_at > ?1
-  `).bind(new Date(time).toISOString()).first<string>("closes_at");
-  const opening = occupiedUntil ? Date.parse(occupiedUntil) : time;
+  `).bind(new Date(slot).toISOString()).first<string>("closes_at");
+  const opening = occupiedUntil ? Date.parse(occupiedUntil) : slot;
   const opensAt = new Date(opening).toISOString();
   const date = easternDateTime(opening).date;
-  if (date !== easternDateTime(time).date) return "slot-occupied";
+  if (date !== easternDateTime(slot).date || (slot > time && opening !== slot)) return "slot-occupied";
   const published = await db.prepare("SELECT 1 FROM autonomous_questions WHERE published_day = ?")
     .bind(date).first();
   if (published) return "slot-occupied";
@@ -109,6 +109,21 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
     }
   }
   return "no-eligible-candidate";
+}
+
+export async function refillUpcomingQueue(db: D1Database, source: AutonomousSource, time: number): Promise<string> {
+  let discovered: Promise<Candidate[]> | undefined;
+  const snapshot: AutonomousSource = {
+    discover: () => discovered ??= source.discover(new Date(time)),
+    verify: (candidate) => source.verify(candidate),
+  };
+  let slot = nextRollover(time);
+  const outcomes: string[] = [];
+  for (let offset = 0; offset < 3; offset++) {
+    outcomes.push(await publishDaily(db, snapshot, time, slot));
+    slot = nextRollover(slot);
+  }
+  return outcomes.join(", ");
 }
 
 export async function resolveDue(
