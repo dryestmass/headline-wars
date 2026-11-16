@@ -1,7 +1,7 @@
 import { DAILY_ROLLOVER, easternDateTime, ROLLOVER_HOUR } from "./rollover";
 import { allowVote, ensureOperations, readHealth, trackJob } from "./operations";
 import { EVIDENCE_REFRESH, runEditorialJob } from "./editorial";
-import { runAutonomousCycle } from "./autonomous";
+import { prepareDaily, runAutonomousCycle } from "./autonomous";
 import { congressSource } from "./congress";
 import type { Ballot, Game, Question } from "../game/model";
 import { winner, type Answer, type Team } from "../game/scoring";
@@ -153,10 +153,10 @@ export default {
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
     const time = controller.scheduledTime;
     const { hour } = easternDateTime(time);
-    const autonomous = (publish: boolean) => trackJob(env.DB, "congressional", time, () => runAutonomousCycle(
-      env.DB, congressSource(fetch, (name, run) => trackJob(env.DB, `source-${name}`, time, run,
-        (candidates) => candidates.length ? "candidates" : "no-candidates")), time, publish,
-    ), (state) => state);
+    const source = congressSource(fetch, (name, run) => trackJob(env.DB, `source-${name}`, time, run,
+      (candidates) => candidates.length ? "candidates" : "no-candidates"));
+    const autonomous = (publish: boolean) => trackJob(env.DB, "congressional", time,
+      () => runAutonomousCycle(env.DB, source, time, publish), (state) => state);
     if (controller.cron === DAILY_ROLLOVER) {
       if (hour === ROLLOVER_HOUR) await autonomous(true);
       return;
@@ -167,6 +167,8 @@ export default {
       const jobs = await Promise.allSettled([
         editorial,
         autonomous(hour >= ROLLOVER_HOUR && hour < 21),
+        ...(hour === 13 ? [trackJob(env.DB, "question-prep", time,
+          () => prepareDaily(env.DB, source, time), (state) => state)] : []),
         ensureOperations(env.DB).then(() => env.DB.prepare("DELETE FROM vote_rate WHERE minute < ?")
           .bind(Math.floor(time / 60000) - 120).run()),
       ]);

@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { getPlatformProxy, type PlatformProxy } from "wrangler";
 import type { Game } from "../game/model";
-import { runAutonomousCycle, type AutonomousSource } from "./autonomous";
+import { prepareDaily, runAutonomousCycle, type AutonomousSource } from "./autonomous";
 import { EVIDENCE_REFRESH, NEWS_REFRESH, runEditorialJob } from "./editorial";
 import { allowVote, ensureOperations, readHealth, trackJob } from "./operations";
 import worker, { type Env } from "./api";
@@ -219,11 +219,12 @@ test("the autonomous sequence rotates the daily question and verifies a pending 
   const second = { ...first, id: "rotation-second", prompt: "Will the second synthetic event happen?",
     decisionAt: "2024-05-03T21:00:00.000Z" };
   const sourceUrl = "https://example.test/official-fixture";
+  const withdrawn = { ...first, id: "withdrawn-fixture" };
   let evidenceAvailable = false;
   let evidenceChecks = 0;
   const source: AutonomousSource = {
-    discover: async (now) => now.getUTCDate() === 1
-      ? [{ ...first, id: "invalid-draft", prompt: "What will happen?" }, first] : [first, second],
+    discover: async (now) => now.getUTCDate() === 1 && now.getUTCHours() < 19 ? [withdrawn, first]
+      : now.getUTCDate() === 1 ? [{ ...first, id: "invalid-draft", prompt: "What will happen?" }, first] : [first, second],
     verify: async () => {
       evidenceChecks++;
       return evidenceAvailable ? { outcome: "yes", sourceUrl } : null;
@@ -239,7 +240,10 @@ test("the autonomous sequence rotates the daily question and verifies a pending 
 
   try {
     await applyMigrations(db);
+    expect(await prepareDaily(db, source, dayOne - 90 * 60_000)).toBe("prepared");
+    expect(await phase(withdrawn.id, dayOne)).toBeNull();
     await runAutonomousCycle(db, source, dayOne);
+    expect(await phase(withdrawn.id, dayOne)).toBeNull();
     await runAutonomousCycle(db, source, dayOne);
     expect(await phase(first.id, dayOne)).toBe("open");
     expect(await phase("invalid-draft", dayOne)).toBeNull();

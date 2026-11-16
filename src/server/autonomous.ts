@@ -36,6 +36,28 @@ async function ensureRegistry(db: D1Database): Promise<void> {
   `).run();
 }
 
+async function ensurePreparation(db: D1Database): Promise<void> {
+  await db.prepare(`CREATE TABLE IF NOT EXISTS daily_question_preparation (
+    day TEXT PRIMARY KEY,
+    candidate_id TEXT NOT NULL
+  )`).run();
+}
+
+function eligible(candidate: Candidate, time: number): boolean {
+  return /^(?:will|did|does|do|is|are|has|have|can|would)\s+[^?]+\?$/i.test(candidate.prompt.trim())
+    && Date.parse(candidate.decisionAt) - time >= 3_600_000;
+}
+
+export async function prepareDaily(db: D1Database, source: AutonomousSource, time: number): Promise<string> {
+  await ensurePreparation(db);
+  const candidates = await source.discover(new Date(time));
+  const preferred = candidates.find((candidate) => eligible(candidate, time + 90 * 60_000));
+  if (!preferred) return "no-eligible-candidate";
+  await db.prepare("INSERT OR IGNORE INTO daily_question_preparation (day, candidate_id) VALUES (?, ?)")
+    .bind(easternDateTime(time).date, preferred.id).run();
+  return "prepared";
+}
+
 export async function publishDaily(db: D1Database, source: AutonomousSource, time: number): Promise<string> {
   await ensureRegistry(db);
   await ensureOperations(db);
@@ -52,12 +74,14 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
     .first<string>("action");
   if (action === "pause") return "paused";
 
-  const candidates = await source.discover(now);
+  await ensurePreparation(db);
+  const preferred = await db.prepare("SELECT candidate_id FROM daily_question_preparation WHERE day = ?")
+    .bind(date).first<string>("candidate_id");
+  // Rediscover from official sources before using any prepared candidate.
+  const candidates = (await source.discover(now)).filter((candidate) => eligible(candidate, time));
+  candidates.sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
   for (const candidate of candidates) {
-    // Source templates express one binary event. Reject unexpected prompt shapes before publication.
-    if (!/^(?:will|did|does|do|is|are|has|have|can|would)\s+[^?]+\?$/i.test(candidate.prompt.trim())) continue;
     const decision = Date.parse(candidate.decisionAt);
-    if (!Number.isFinite(decision) || decision - time < 3600000) continue;
     const closesAt = new Date(Math.min(nextRollover(time), decision - 15 * 60000)).toISOString();
     const [insert] = await db.batch([
       db.prepare(`
