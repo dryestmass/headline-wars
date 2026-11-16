@@ -133,8 +133,8 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
     if (submitting || confirmation.open) return;
     selection = { id, answer };
     confirmation.dataset.phase = "ready";
-    heading.textContent = `Lock in ${answer.toUpperCase()}?`;
-    message.textContent = `Your pick stays with Team ${team === "red" ? "Red" : "Blue"} once submitted.`;
+    heading.textContent = `Confirm your ${answer.toUpperCase()} vote?`;
+    message.textContent = `Your vote stays with Team ${team === "red" ? "Red" : "Blue"} once submitted.`;
     confirmButton.disabled = false;
     backButton.disabled = false;
     confirmation.showModal();
@@ -322,8 +322,8 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       if (response.ok && result.ballot) {
         celebrate = true;
         confirmation.dataset.phase = "locked";
-        heading.textContent = `${result.ballot.answer.toUpperCase()} LOCKED IN`;
-        message.textContent = "Your vote is recorded.";
+        heading.textContent = "VOTE LOCKED IN";
+        message.textContent = `You voted ${result.ballot.answer.toUpperCase()} for Team ${result.ballot.team === "red" ? "Red" : "Blue"}.`;
         window.clearTimeout(voteTimer);
         voteTimer = window.setTimeout(() => confirmation.close(), 1700);
       } else {
