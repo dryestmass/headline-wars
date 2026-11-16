@@ -55,21 +55,25 @@ export async function prepareDaily(db: D1Database, source: AutonomousSource, tim
   if (!preferred) return "no-eligible-candidate";
   await db.prepare("INSERT OR IGNORE INTO daily_question_preparation (day, candidate_id) VALUES (?, ?)")
     .bind(easternDateTime(time).date, preferred.id).run();
-  return "prepared";
+  const rollover = nextRollover(time - 86_400_000);
+  return publishDaily(db, source, time, rollover);
 }
 
-export async function publishDaily(db: D1Database, source: AutonomousSource, time: number): Promise<string> {
+export async function publishDaily(db: D1Database, source: AutonomousSource, time: number, requestedOpen = time): Promise<string> {
   await ensureRegistry(db);
   await ensureOperations(db);
   const now = new Date(time);
-  const opensAt = now.toISOString();
-  const date = easternDateTime(time).date;
-  const busy = await db.prepare(`
-    SELECT 1 FROM autonomous_questions WHERE published_day = ?1
-    UNION ALL SELECT 1 FROM questions WHERE status = 'open' AND opens_at <= ?2 AND closes_at > ?2
-    LIMIT 1
-  `).bind(date, opensAt).first();
-  if (busy) return "slot-occupied";
+  const occupiedUntil = await db.prepare(`
+    SELECT MAX(closes_at) AS closes_at FROM questions
+    WHERE status = 'open' AND opens_at <= ?1 AND closes_at > ?1
+  `).bind(new Date(requestedOpen).toISOString()).first<string>("closes_at");
+  const opening = occupiedUntil ? Date.parse(occupiedUntil) : requestedOpen;
+  const opensAt = new Date(opening).toISOString();
+  const date = easternDateTime(opening).date;
+  if (date !== easternDateTime(requestedOpen).date) return "slot-occupied";
+  const published = await db.prepare("SELECT 1 FROM autonomous_questions WHERE published_day = ?")
+    .bind(date).first();
+  if (published) return "slot-occupied";
   const action = await db.prepare("SELECT action FROM editorial_actions WHERE question_id IS NULL ORDER BY seq DESC LIMIT 1")
     .first<string>("action");
   if (action === "pause") return "paused";
@@ -78,11 +82,11 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
   const preferred = await db.prepare("SELECT candidate_id FROM daily_question_preparation WHERE day = ?")
     .bind(date).first<string>("candidate_id");
   // Rediscover from official sources before using any prepared candidate.
-  const candidates = (await source.discover(now)).filter((candidate) => eligible(candidate, time));
+  const candidates = (await source.discover(now)).filter((candidate) => eligible(candidate, opening));
   candidates.sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
   for (const candidate of candidates) {
     const decision = Date.parse(candidate.decisionAt);
-    const closesAt = new Date(Math.min(nextRollover(time), decision - 15 * 60000)).toISOString();
+    const closesAt = new Date(Math.min(nextRollover(opening), decision - 15 * 60000)).toISOString();
     const [insert] = await db.batch([
       db.prepare(`
         INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
@@ -102,7 +106,7 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
     ]);
     if (insert.meta.changes) {
       console.info("Published autonomous question", { id: candidate.id, closesAt });
-      return "published";
+      return opening > time ? "queued" : "published";
     }
   }
   return "no-eligible-candidate";
