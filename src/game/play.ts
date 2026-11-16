@@ -88,8 +88,11 @@ function sourceLink(href: string, label: string): HTMLAnchorElement {
   return link;
 }
 
-function receipt(ballot: Ballot): HTMLElement {
+function receipt(ballot: Ballot, showReminder: boolean): HTMLElement {
   const note = element("p", `You voted ${ballot.answer.toUpperCase()} for Team ${ballot.team === "red" ? "Red" : "Blue"}.`, "ballot-receipt");
+  if (showReminder) {
+    note.append(document.createElement("br"), element("small", "Check back tomorrow at 3 p.m. Eastern to vote on a new question."));
+  }
   note.tabIndex = -1;
   return note;
 }
@@ -139,7 +142,7 @@ function questionCard(question: Question, today: boolean): HTMLElement {
     const deadline = new Date(question.closesAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
     card.append(element("p", `Voting closes ${deadline}`, "deadline"));
   }
-  if (question.ballot) card.append(receipt(question.ballot));
+  if (question.ballot) card.append(receipt(question.ballot, today));
   if (question.status === "closed") card.append(element("p", "Voting closed. Awaiting verification."));
   if (question.status === "resolved") {
     const result = question.winner === "red" || question.winner === "blue"
@@ -392,7 +395,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
         if (voteShortcut) voteShortcut.hidden = true;
         const choices = container.querySelector(".question .choices");
         if (choices) {
-          const note = receipt(result.ballot);
+          const note = receipt(result.ballot, true);
           choices.replaceWith(note);
           note.focus({ preventScroll: true });
         }
