@@ -727,47 +727,29 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .vote-shortcut {
   position: relative;
   width: 100%;
-  min-height: 82px;
+  min-height: 100px;
   overflow: hidden;
   margin: 0 auto 16px;
-  padding: 12px 62px;
-  border: 2px solid transparent;
-  border-radius: 10px;
-  background:
-    repeating-linear-gradient(112deg, transparent 0 18px, #ffffff12 18px 21px, transparent 21px 35px) left / 29% 100% no-repeat padding-box,
-    repeating-linear-gradient(112deg, transparent 0 18px, #ffffff12 18px 21px, transparent 21px 35px) right / 29% 100% no-repeat padding-box,
-    linear-gradient(105deg, #751332, #181a32 42% 58%, #153f82) padding-box,
-    linear-gradient(100deg, #ff6980, #e5c5ff 50%, #66c5ff) border-box;
-  box-shadow: 0 4px #17182c, 0 0 16px #6253b04d;
-  color: #fff8e5;
-  font: 900 italic clamp(25px, 4vw, 36px)/1 var(--display);
-  letter-spacing: .06em;
+  padding: 12px 0;
+  border: 0;
+  background: transparent;
+  color: #191a30;
+  font: 900 italic clamp(44px, 8vw, 76px)/1 var(--display);
+  letter-spacing: .04em;
   text-transform: uppercase;
-  text-shadow: 0 2px #17182c;
 }
 .vote-shortcut .marquee-arrow {
   position: absolute;
-  inset-inline-end: 14px;
+  inset-inline-end: 8px;
   top: 50%;
   transform: translateY(-50%);
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: #ffdb72;
-  box-shadow: 0 2px #9a6328;
-  color: #191a30;
   font: 800 23px/1 "DM Sans", sans-serif;
-  text-shadow: none;
 }
-.vote-shortcut:is(:hover, :focus-visible) { filter: brightness(1.2); }
 .vote-shortcut:focus-visible { outline: 3px solid #377def; outline-offset: 3px; }
 @media (prefers-reduced-motion: no-preference) {
-  .marquee-copy { animation: marquee-slide 3.8s ease-in-out both; }
-  .vote-shortcut:is(:hover, :focus-visible) .marquee-copy { animation: none; }
-  .vote-shortcut .marquee-arrow { transition: transform 150ms ease-out; }
-  .vote-shortcut:is(:hover, :focus-visible) span { transform: translateY(calc(-50% + 4px)); }
+  .marquee-copy { animation: marquee-slide 28s linear -14s infinite; }
+  .vote-shortcut:focus-visible .marquee-copy { animation: none; }
+  .vote-shortcut:hover .marquee-copy { animation-play-state: paused; }
 }
 
 .vote-phrase, .vote-answer { display: block; }
@@ -796,14 +778,12 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .marquee-copy, .marquee-title { display: block; }
 .vote-shortcut .deadline {
   margin: 6px 0 0;
-  color: #ffe49a;
-  font: 800 clamp(.65rem, 2vw, .81rem)/1.3 "DM Sans", sans-serif;
+  color: #45445a;
+  font: 800 clamp(.75rem, 2vw, 1rem)/1.3 "DM Sans", sans-serif;
   letter-spacing: .06em;
   text-shadow: none;
 }
 @keyframes marquee-slide {
-  0% { transform: translateX(-85%); opacity: 0; }
-  20%, 65% { opacity: 1; }
-  70% { transform: translateX(9%); }
-  100% { transform: translateX(0); }
+  from { transform: translateX(100%); }
+  to { transform: translateX(-100%); }
 }
