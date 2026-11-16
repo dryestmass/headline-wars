@@ -87,19 +87,26 @@ function questionCard(question: Question, today: boolean): HTMLElement {
   }
   const source = questionSource(question.criteria);
   const boeingProposal = question.id === "fr-2026-23198";
+  const houseBill = source.url && /^Will the House pass (H\.R\. \d+) \((.+)\)\?$/.exec(question.prompt);
   const prompt = boeingProposal
     ? "Will the FAA make its proposed Boeing 787-8 safety fix mandatory by February 14, 2027?"
-    : question.prompt;
+    : houseBill ? `Will the House pass ${houseBill[2]}?` : question.prompt;
   card.append(element(today ? "h1" : "h2", prompt));
   if (boeingProposal) {
     card.append(element("p", "The FAA proposed fixing certain wing fasteners to improve lightning protection. Vote YES if you think the final rule will be published by February 14, or NO if you think it won't."));
     card.append(sourceLink("https://www.govinfo.gov/content/pkg/FR-2026-11-13/pdf/2026-23198.pdf", "Read the FAA proposal"));
+  } else if (source.url) {
+    card.append(element("p", houseBill
+      ? `The House floor schedule lists ${houseBill[1]} for consideration. Vote YES if you think the House will pass it, or NO if you think it will vote it down.`
+      : "The Senate floor schedule lists this nomination for consideration. Vote YES if you think the Senate will approve the nominee, or NO if you think it will vote to reject them."));
+    card.append(sourceLink(source.url, "Read the official floor schedule"));
+  }
+  if (boeingProposal || source.url) {
     const rules = element("details", undefined, "resolution-rules");
     rules.append(element("summary", "How this vote is decided"), element("p", source.criteria));
     card.append(rules);
   } else {
     card.append(element("p", source.criteria));
-    if (source.url) card.append(sourceLink(source.url, "Read the official floor schedule"));
   }
   if (question.status === "open") {
     const deadline = new Date(question.closesAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
