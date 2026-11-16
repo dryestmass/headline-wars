@@ -37,7 +37,11 @@ function selection(initial = remembered() ?? fighters.red[1]): void {
     <form class="picker" aria-label="Choose your fighter">
       <div class="matchup">
         ${panel("red", chosen)}
-        <div class="fight-art" role="img" aria-label="Red elephant and Blue donkey facing off in a boxing ring"></div>
+        <div class="fight-art" role="img" aria-label="Red elephant and Blue donkey facing off in a boxing ring">
+          <div class="fighter-sprite fighter-sprite--red"></div>
+          <div class="fighter-burst"></div>
+          <div class="fighter-sprite fighter-sprite--blue"></div>
+        </div>
         ${panel("blue", chosen)}
       </div>
       <div class="fighter-nameplate"><p class="fighter-caption"><strong></strong><small></small></p></div>
@@ -45,6 +49,20 @@ function selection(initial = remembered() ?? fighters.red[1]): void {
     </form></main>`;
   const form = app.querySelector("form")!;
   const join = form.querySelector<HTMLButtonElement>(".join")!;
+  const animations: Partial<Record<Team, Animation>> = {};
+  function react(team: Team) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const sprite = form.querySelector<HTMLElement>(`.fighter-sprite--${team}`);
+    if (!sprite?.animate) return;
+    const direction = team === "red" ? 1 : -1;
+    animations[team]?.cancel();
+    animations[team] = sprite.animate([
+      { transform: "translate(0, 0) scale(1)" },
+      { transform: `translate(${-direction * 2}%, 2%) scale(.98)`, offset: .23 },
+      { transform: `translate(${direction * 5}%, -4%) scale(1.055)`, offset: .52 },
+      { transform: "translate(0, 0) scale(1)" },
+    ], { duration: 420, easing: "cubic-bezier(.2, .75, .25, 1)" });
+  }
   function update() {
     form.dataset.team = chosen.team;
     form.querySelector(".fighter-caption strong")!.textContent = chosen.name;
@@ -54,7 +72,17 @@ function selection(initial = remembered() ?? fighters.red[1]): void {
   form.addEventListener("change", (event) => {
     if (!(event.target instanceof HTMLInputElement) || event.target.name !== "fighter") return;
     const selected = roster.find((fighter) => fighter.id === (event.target as HTMLInputElement).value);
-    if (selected) { chosen = selected; update(); }
+    if (selected) {
+      chosen = selected;
+      update();
+      react(chosen.team);
+    }
+  });
+  form.addEventListener("click", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.name === "fighter" && target.value === chosen.id) {
+      react(chosen.team);
+    }
   });
   form.addEventListener("submit", (event) => {
     event.preventDefault();

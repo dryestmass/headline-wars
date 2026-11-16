@@ -62,11 +62,53 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 }
 
 .fight-art {
+  display: grid;
+  grid-template-columns: 475fr 100fr 467fr;
   width: 100%;
   aspect-ratio: 1042 / 382;
-  background: url("/art/fighter-mockup.webp") 50.8% 36.7% / 160.46% 246.34% no-repeat;
-  border-radius: 14px;
-  box-shadow: 0 12px 30px #020616;
+  overflow: hidden;
+  isolation: isolate;
+  background: #101738;
+}
+
+.fighter-sprite, .fighter-burst {
+  min-width: 0;
+  background-image: url("/art/fighter-mockup.webp");
+  background-repeat: no-repeat;
+  background-position-y: 36.7%;
+  transition: translate .22s ease, filter .22s ease;
+}
+
+.fighter-sprite--red {
+  background-size: 352% 246.34%;
+  background-position-x: 26.73%;
+  transform-origin: 42% 70%;
+}
+
+.fighter-burst {
+  z-index: 1;
+  pointer-events: none;
+  background-size: 1672% 246.34%;
+  background-position-x: 50.57%;
+}
+
+.fighter-sprite--blue {
+  background-size: 358.03% 246.34%;
+  background-position-x: 74.27%;
+  transform-origin: 58% 70%;
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .fighter-sprite:hover,
+  .matchup:has(.team-picker--red .fighter-option:hover) .fighter-sprite--red,
+  .matchup:has(.team-picker--blue .fighter-option:hover) .fighter-sprite--blue {
+    translate: 0 -3%;
+    filter: brightness(1.11) saturate(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fighter-sprite { transition: none; }
 }
 
 .team-picker {
@@ -309,9 +351,6 @@ footer { margin-top: 38px; border-top: 1px solid var(--line); padding-top: 14px;
 .matchup { gap: clamp(10px, 1.9vw, 23px); }
 .fight-art {
   border-radius: 3px;
-  background-image: linear-gradient(180deg, #090c2422, transparent 16%, transparent 88%, #080d255c), url("/art/fighter-mockup.webp");
-  background-size: 100% 100%, 160.46% 246.34%;
-  background-position: center, 50.8% 36.7%;
   box-shadow: 0 15px 32px #05061788;
 }
 .team-picker { background: linear-gradient(135deg, #171c32, #0b0d21); border-radius: 5px; }
