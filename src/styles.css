@@ -71,9 +71,8 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   isolation: isolate;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 20% 65%, #820a35 0%, transparent 45%),
-    radial-gradient(ellipse at 80% 62%, #1347a7 0%, transparent 45%),
-    linear-gradient(180deg, #111a3b, #090d26 73%, #211936);
+    radial-gradient(ellipse 31% 44% at 31% 56%, #a4144caa, transparent),
+    radial-gradient(ellipse 31% 44% at 69% 56%, #205ad0aa, transparent);
 }
 .fight-art::before {
   content: "";
@@ -82,6 +81,7 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   height: 23%;
   background: repeating-linear-gradient(to bottom, transparent 0 24%, #7d8cbc 25% 28%, transparent 29% 44%);
   opacity: .56;
+  mask-image: linear-gradient(to right, transparent, black 18% 82%, transparent);
 }
 
 .fighter-sprite {
@@ -380,10 +380,6 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 }
 .arena h1 { color: #ffe68d; text-shadow: 0 3px #fb8a18, 0 6px #a81614, 0 9px #380c25, 0 0 23px #f1542e; }
 .matchup { gap: clamp(10px, 1.9vw, 23px); }
-.fight-art {
-  border-radius: 3px;
-  box-shadow: 0 15px 32px #05061788;
-}
 .team-picker { background: linear-gradient(135deg, #171c32, #0b0d21); border-radius: 5px; }
 .fighter-option span { border-radius: 3px; background: linear-gradient(#30384f, #1d233c); }
 .fighter-option input:checked + span {
