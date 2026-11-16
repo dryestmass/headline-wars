@@ -86,8 +86,21 @@ function questionCard(question: Question, today: boolean): HTMLElement {
     card.append(label);
   }
   const source = questionSource(question.criteria);
-  card.append(element(today ? "h1" : "h2", question.prompt), element("p", source.criteria));
-  if (source.url) card.append(sourceLink(source.url, "Official floor schedule"));
+  const boeingProposal = question.id === "fr-2026-23198";
+  const prompt = boeingProposal
+    ? "Will the FAA make its proposed Boeing 787-8 safety fix mandatory by February 14, 2027?"
+    : question.prompt;
+  card.append(element(today ? "h1" : "h2", prompt));
+  if (boeingProposal) {
+    card.append(element("p", "The FAA proposed fixing certain wing fasteners to improve lightning protection. Vote YES if you think the final rule will be published by February 14, or NO if you think it won't."));
+    card.append(sourceLink("https://www.govinfo.gov/content/pkg/FR-2026-11-13/pdf/2026-23198.pdf", "Read the FAA proposal"));
+    const rules = element("details", undefined, "resolution-rules");
+    rules.append(element("summary", "How this vote is decided"), element("p", source.criteria));
+    card.append(rules);
+  } else {
+    card.append(element("p", source.criteria));
+    if (source.url) card.append(sourceLink(source.url, "Read the official floor schedule"));
+  }
   if (question.status === "open") {
     const deadline = new Date(question.closesAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
     card.append(element("p", `Voting closes ${deadline}`, "deadline"));
