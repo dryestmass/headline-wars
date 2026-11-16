@@ -141,8 +141,8 @@ function questionCard(question: Question, today: boolean): HTMLElement {
     card.append(element("p", source.criteria));
   }
   if (question.status === "open") {
-    const deadline = new Date(question.closesAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-    card.append(element("p", `Voting closes ${deadline}`, "deadline"));
+    const deadline = new Date(question.closesAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" });
+    card.append(element("span", `Voting closes ${deadline} Eastern`, "deadline"));
   }
   if (question.ballot) card.append(receipt(question.ballot, today));
   if (question.status === "closed") card.append(element("p", "Voting closed. Awaiting verification."));
@@ -316,7 +316,12 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
     const focused = document.activeElement;
     const answer = focused instanceof HTMLElement ? focused.dataset.answer : undefined;
     const summary = focused?.tagName === "SUMMARY" ? focused.parentElement?.dataset.archive : null;
-    if (voteShortcut) panel.prepend(voteShortcut);
+    const deadline = panel.querySelector(".deadline");
+    voteShortcut?.querySelector(".deadline")?.remove();
+    if (voteShortcut && deadline && panel.querySelector(".choices")) {
+      voteShortcut.querySelector(".marquee-copy")?.append(deadline);
+      panel.prepend(voteShortcut);
+    }
     container.replaceChildren(panel, archive);
     const ballot = panel.querySelector<HTMLElement>(".choices");
     if (voteShortcut) voteShortcut.hidden = !ballot;
@@ -394,7 +399,11 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       const result: { ballot?: Ballot; error?: string } = await response.json();
       if (result.ballot) {
         confirmedBallots.set(id, result.ballot);
-        if (voteShortcut) voteShortcut.hidden = true;
+        if (voteShortcut) {
+          const deadline = voteShortcut.querySelector(".deadline");
+          if (deadline) voteShortcut.after(deadline);
+          voteShortcut.hidden = true;
+        }
         const choices = container.querySelector(".question .choices");
         if (choices) {
           const note = receipt(result.ballot, true);
