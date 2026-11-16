@@ -752,3 +752,26 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 }
 .vote-shortcut:hover { filter: brightness(1.28); }
 .vote-shortcut:focus-visible { outline: 3px solid #377def; outline-offset: 3px; }
+
+.vote-phrase, .vote-answer { display: block; }
+.vote-answer {
+  margin-top: 4px;
+  font: 600 .8rem/1.2 "DM Sans", sans-serif;
+  letter-spacing: normal;
+}
+.choices button { padding: 8px 6px; }
+.next-round {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 6px;
+  background: linear-gradient(105deg, #49182d, #191a30 50%, #193766);
+  color: #fff;
+}
+.next-round strong {
+  color: #ffdb72;
+  font: 900 1.5rem/1 var(--display);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}

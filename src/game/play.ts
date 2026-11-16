@@ -91,7 +91,9 @@ function sourceLink(href: string, label: string): HTMLAnchorElement {
 function receipt(ballot: Ballot, showReminder: boolean): HTMLElement {
   const note = element("p", `You voted ${ballot.answer.toUpperCase()} for Team ${ballot.team === "red" ? "Red" : "Blue"}.`, "ballot-receipt");
   if (showReminder) {
-    note.append(document.createElement("br"), element("small", "Check back tomorrow at 3 p.m. Eastern to vote on a new question."));
+    const nextRound = element("span", undefined, "next-round");
+    nextRound.append(element("strong", "Next round"), element("span", "Tomorrow · 3 p.m. Eastern"));
+    note.append(nextRound);
   }
   note.tabIndex = -1;
   return note;
@@ -284,8 +286,8 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
         const labels = labelsForQuestion(today.id);
         for (const answer of ["yes", "no"] as const) {
           const button = document.createElement("button");
-          button.append(element("small", answer.toUpperCase()), document.createElement("br"),
-            document.createTextNode(labels[answer]));
+          button.append(element("span", labels[answer], "vote-phrase"),
+            element("small", answer === "yes" ? "(Yes)" : "(No)", "vote-answer"));
           button.dataset.answer = answer;
           button.disabled = submitting;
           button.addEventListener("click", () => confirmVote(today.id, answer));
