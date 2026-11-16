@@ -159,7 +159,16 @@ function questionCard(question: Question, today: boolean): HTMLElement {
   return card;
 }
 
-export function startGame(container: HTMLElement, score: HTMLElement, status: HTMLElement, team: Team): () => void {
+export function startGame(container: HTMLElement, score: HTMLElement, status: HTMLElement, team: Team, voteShortcut?: HTMLButtonElement): () => void {
+  voteShortcut?.addEventListener("click", () => {
+    const ballot = container.querySelector<HTMLElement>(".question .choices");
+    if (!ballot) return;
+    ballot.focus({ preventScroll: true });
+    ballot.scrollIntoView({
+      block: "center",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+    });
+  });
   const lifetime = new AbortController();
   const voter = browserVoter();
   const headers: Record<string, string> = voter ? { "X-Voter-Id": voter } : {};
@@ -267,6 +276,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       } else {
         const choices = element("div", undefined, "choices");
         choices.setAttribute("role", "group");
+        choices.tabIndex = -1;
         choices.setAttribute("aria-label", `Vote for Team ${team === "red" ? "Red" : "Blue"}`);
         const labels = labelsForQuestion(today.id);
         for (const answer of ["yes", "no"] as const) {
@@ -302,6 +312,9 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
     const answer = focused instanceof HTMLElement ? focused.dataset.answer : undefined;
     const summary = focused?.tagName === "SUMMARY" ? focused.parentElement?.dataset.archive : null;
     container.replaceChildren(panel, archive);
+    const ballot = panel.querySelector<HTMLElement>(".choices");
+    if (voteShortcut) voteShortcut.hidden = !ballot;
+    if (focused?.classList.contains("choices")) ballot?.focus({ preventScroll: true });
     if (focused?.classList.contains("ballot-receipt")) {
       container.querySelector<HTMLElement>(".question .ballot-receipt")?.focus({ preventScroll: true });
     }
@@ -374,6 +387,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       const result: { ballot?: Ballot; error?: string } = await response.json();
       if (result.ballot) {
         confirmedBallots.set(id, result.ballot);
+        if (voteShortcut) voteShortcut.hidden = true;
         const choices = container.querySelector(".question .choices");
         if (choices) {
           const note = receipt(result.ballot);

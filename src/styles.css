@@ -723,3 +723,11 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .resolution-rules { margin: .85rem 0; }
 .resolution-rules summary { cursor: pointer; }
 .resolution-rules p { text-align: left; }
+
+.vote-shortcut {
+  --accent: #ffc65d;
+  --deep: #761b32;
+  width: min(100%, 240px);
+  margin: 0 auto 18px;
+}
+.vote-shortcut span { margin-inline-start: .25em; }
