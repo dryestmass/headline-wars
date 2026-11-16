@@ -1,11 +1,13 @@
 import { fighters, type Fighter, type Team } from "./fighters";
 import { startGame } from "./game/play";
+import { listenForSounds, soundButton } from "./game/sound";
 import "./styles.css";
 
 const key = "headline-wars:fighter";
 const root = document.querySelector<HTMLDivElement>("#app");
 if (!root) throw new Error("Missing application root");
 const app = root;
+listenForSounds(app);
 const roster = Object.values(fighters).flat();
 const party: Record<Team, string> = { red: "Republican", blue: "Democrat" };
 
@@ -38,6 +40,7 @@ function sprite(team: Team): string {
 function selection(initial = remembered() ?? fighters.red[1]): void {
   let chosen = initial;
   app.innerHTML = `<main class="arena"><header>
+    <div class="sound-row">${soundButton()}</div>
     <div class="wordmark wordmark--arena" role="img" aria-label="Headline Wars"></div>
     <h1>CHOOSE YOUR FIGHTER</h1>
     </header>
@@ -123,7 +126,7 @@ function choose(fighter: Fighter): void {
 
 function home(fighter: Fighter): void {
   app.innerHTML = `<main class="home">
-    <header class="top"><div class="wordmark" role="img" aria-label="Headline Wars"></div></header>
+    <header class="top"><div class="sound-row">${soundButton()}</div><div class="wordmark" role="img" aria-label="Headline Wars"></div></header>
     <section class="scoreboard" aria-label="Headlines won by team">
       <div class="scores">
         <div class="score-panel score-panel--red"><span>RED TEAM</span><strong data-score="red">–</strong></div>

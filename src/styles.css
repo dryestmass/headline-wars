@@ -39,8 +39,11 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 }
 
 .wordmark--arena {
-  mix-blend-mode: normal;
-  width: min(85%, 630px);
+  mix-blend-mode: screen;
+  mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent),
+    linear-gradient(to bottom, transparent, #000 7%, #000 89%, transparent);
+  mask-composite: intersect;
+  width: min(88%, 630px);
   aspect-ratio: 955 / 118;
   background: url("/art/fighter-mockup.webp") 50.5% 0 / 175.08% 797.46% no-repeat;
 }
@@ -512,4 +515,28 @@ footer { margin-top: 38px; border-top: 1px solid var(--line); padding-top: 14px;
   .fight-art { margin-bottom: .35rem; }
   .score-panel strong::before { left: 7%; }
   .score-panel strong::after { right: 7%; }
+}
+
+
+.sound-row {
+  display: flex;
+  justify-content: flex-end;
+  max-width: 1220px;
+  margin-inline: auto;
+}
+.sound-toggle {
+  min-height: 36px;
+  border: 1px solid #55708a;
+  border-radius: 999px;
+  padding: .25rem .75rem;
+  background: #f9f5eb;
+  color: #283850;
+  font-size: .75rem;
+  font-weight: 800;
+}
+.sound-toggle:hover { background: #e8f2ff; }
+.arena .sound-toggle { background: #141a3a; color: #e7ecff; border-color: #6778a3; }
+.arena .sound-toggle:hover { background: #26345c; }
+@media (max-width: 700px) {
+  .sound-row { margin-bottom: 4px; }
 }
