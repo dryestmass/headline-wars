@@ -747,7 +747,7 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 }
 .vote-shortcut:focus-visible { outline: 3px solid #377def; outline-offset: 3px; }
 @media (prefers-reduced-motion: no-preference) {
-  .marquee-copy { animation: marquee-slide 28s linear -14s infinite; }
+  .marquee-copy { animation: marquee-drift 6s ease-in-out infinite; }
   .vote-shortcut:focus-visible .marquee-copy { animation: none; }
   .vote-shortcut:hover .marquee-copy { animation-play-state: paused; }
 }
@@ -783,7 +783,8 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   letter-spacing: .06em;
   text-shadow: none;
 }
-@keyframes marquee-slide {
-  from { transform: translateX(100%); }
-  to { transform: translateX(-100%); }
+@keyframes marquee-drift {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(clamp(8px, 2vw, 24px)) translateY(-2px); }
+  75% { transform: translateX(clamp(-24px, -2vw, -8px)) translateY(2px); }
 }
