@@ -1,3 +1,4 @@
+import { playVoteLocked } from "./sound";
 import { sprite } from "./fighter-sprite";
 import type { Ballot, Game, Question } from "./model";
 import { questionSource } from "./question-source";
@@ -322,6 +323,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       if (response.ok && result.ballot) {
         celebrate = true;
         confirmation.dataset.phase = "locked";
+        playVoteLocked();
         heading.textContent = "VOTE LOCKED IN";
         message.textContent = `You voted ${result.ballot.answer.toUpperCase()} for Team ${result.ballot.team === "red" ? "Red" : "Blue"}.`;
         window.clearTimeout(voteTimer);

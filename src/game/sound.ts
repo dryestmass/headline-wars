@@ -1,4 +1,4 @@
-type Cue = "tap" | "red" | "blue" | "join" | "yes" | "no" | "open" | "close";
+type Cue = "tap" | "red" | "blue" | "join" | "yes" | "no" | "open" | "close" | "vote-submit" | "vote-locked";
 
 interface Note {
   frequency: number;
@@ -30,6 +30,17 @@ const cues: Record<Cue, Note[]> = {
   no: [
     { frequency: 330, start: 0, duration: .085, level: .07, wave: "triangle" },
     { frequency: 262, start: .055, duration: .11, level: .065, wave: "triangle" },
+  ],
+  "vote-submit": [
+    { frequency: 185, start: 0, duration: .12, level: .085, wave: "triangle" },
+    { frequency: 740, start: .018, duration: .055, level: .035, wave: "square" },
+  ],
+  "vote-locked": [
+    { frequency: 98, start: 0, duration: .17, level: .14, wave: "triangle" },
+    { frequency: 392, start: .055, duration: .13, level: .055, wave: "square" },
+    { frequency: 494, start: .125, duration: .16, level: .06, wave: "triangle" },
+    { frequency: 587, start: .195, duration: .23, level: .07, wave: "triangle" },
+    { frequency: 784, start: .195, duration: .34, level: .08, wave: "triangle" },
   ],
   open: [
     { frequency: 392, start: 0, duration: .07, level: .045, wave: "triangle" },
@@ -69,6 +80,10 @@ function play(cue: Cue): void {
   } catch { /* Sound availability must never block gameplay. */ }
 }
 
+export function playVoteLocked(): void {
+  play("vote-locked");
+}
+
 export function soundButton(): string {
   return `<button class="sound-toggle" type="button" aria-label="Sound effects" aria-pressed="${enabled}">Sound ${enabled ? "on" : "off"}</button>`;
 }
@@ -86,7 +101,9 @@ export function listenForSounds(container: HTMLElement): void {
       play("open");
       return;
     }
-    if (control.matches(".join")) play("join");
+    if (control.matches("[data-vote-confirm]")) play("vote-submit");
+    else if (control.matches("[data-vote-back]")) play("close");
+    else if (control.matches(".join")) play("join");
     else if (control.matches("[data-answer=yes]")) play("yes");
     else if (control.matches("[data-answer=no]")) play("no");
     else if (control.matches("summary")) play(control.parentElement?.hasAttribute("open") ? "close" : "open");
