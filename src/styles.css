@@ -301,7 +301,6 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   box-shadow: 0 2px #cbc1b2;
   font: 900 clamp(22px, 4vw, 32px)/1 var(--display);
 }
-.choices button:hover:enabled { border-color: var(--blue); background: #e9f2ff; }
 .choices button:disabled { opacity: .55; cursor: wait; }
 .ballot-receipt { padding: .75rem; border: 1px solid #7a8b9d; border-radius: .5rem; background: #ecf2f8; font-weight: 800; }
 
@@ -486,11 +485,75 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .scoreboard[data-leader="red"] .score-lead { background: linear-gradient(100deg, #780b1f, #151629); }
 .scoreboard[data-leader="blue"] .score-lead { background: linear-gradient(100deg, #151629, #07377d); }
 .deadline { text-transform: uppercase; letter-spacing: .10em; font-size: clamp(.65rem, 2vw, .83rem); }
-.choices button { font-family: "DM Sans", sans-serif; font-weight: 800; }
-.choices button[data-answer="yes"]:hover:enabled { border-color: var(--red); background: #fff0ef; }
-.vote-results { position: relative; }
-.vote-results::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--line); }
-.tally-track { height: clamp(9px, 1.5vw, 15px); }
+.choices button {
+  --vote-ink: #553074;
+  --vote-light: #efe3f8;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 2px solid var(--vote-ink);
+  background: var(--vote-light);
+  color: var(--vote-ink);
+  box-shadow: 0 4px var(--vote-ink);
+  letter-spacing: .05em;
+}
+.choices button[data-answer="yes"] {
+  --vote-ink: #17613e;
+  --vote-light: #dff3e5;
+}
+.choices button:enabled:is(:hover, :focus-visible) {
+  background: var(--vote-ink);
+  color: white;
+  box-shadow: 0 4px #171627, 0 0 16px color-mix(in srgb, var(--vote-ink), transparent 60%);
+}
+.choices button:focus-visible {
+  outline: 2px solid var(--vote-ink);
+  outline-offset: 4px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .choices button { transition: transform 140ms ease, box-shadow 140ms ease; }
+  .choices button:enabled:focus-visible { transform: translateY(-3px); }
+  .choices button:enabled:active { transform: translateY(3px); }
+  @media (hover: hover) {
+    .choices button:enabled:hover:not(:active) { transform: translateY(-3px); }
+    .choices button:enabled:hover::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(110deg, transparent 32%, #fff5 50%, transparent 68%);
+      animation: vote-button-sweep 420ms ease-out both;
+    }
+  }
+}
+@keyframes vote-button-sweep {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(110%); }
+}
+.vote-results { gap: clamp(8px, 2vw, 18px); }
+.team-tally {
+  padding: clamp(8px, 2vw, 16px);
+  border: 1px solid color-mix(in srgb, var(--tally), #e3d9cb 65%);
+  border-top: 4px solid var(--tally);
+  border-radius: 10px;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--tally), #fff 94%), #fffaf2);
+  box-shadow: 0 3px #1b152014;
+}
+.tally-labels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 6px;
+  gap: 4px;
+  font: 900 clamp(12px, 3vw, 21px)/1.2 var(--display);
+}
+.tally-yes, .tally-no { text-align: center; padding: 6px 2px; }
+.tally-track {
+  height: clamp(11px, 2vw, 17px);
+  background:
+    repeating-linear-gradient(to right, transparent 0 calc(10% - 1px), #fff4 calc(10% - 1px) 10%),
+    linear-gradient(to right, #248554 var(--yes-share), #80529b var(--yes-share));
+  box-shadow: inset 0 2px #0003;
+}
 .archive summary {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) 13px;
