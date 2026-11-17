@@ -1,7 +1,7 @@
 import { playVoteLocked } from "./sound";
 import { sprite } from "./fighter-sprite";
 import type { Ballot, Game, Question } from "./model";
-import { questionSource } from "./question-source";
+import { questionExplanation, questionSource } from "./question-source";
 import { accuracy, type Answer, type Team } from "./scoring";
 
 const voteLabels = [
@@ -115,6 +115,7 @@ function questionCard(question: Question, today: boolean): HTMLElement {
     card.append(label);
   }
   const source = questionSource(question.criteria);
+  const explanation = questionExplanation(question);
   const boeingProposal = question.id === "fr-2026-23198";
   const houseBill = source.url && /^Will the House pass (H\.R\. \d+) \((.+)\)\?$/.exec(question.prompt);
   const prompt = boeingProposal
@@ -130,18 +131,19 @@ function questionCard(question: Question, today: boolean): HTMLElement {
   } else if (question.id === "house-119-hr3495") {
     card.append(element("p", "The bill decides which pay rules apply to some real estate agents and people who sell products directly to customers. It would count them as working for themselves, so the companies they sell for would not have to pay them the federal minimum wage or extra pay for overtime."));
     card.append(sourceLink("https://www.congress.gov/bill/119th-congress/house-bill/3495/text", "Read the bill"), ...(source.url ? [" · ", sourceLink(source.url, "Read the official floor schedule")] : []));
+  } else if (explanation) {
+    card.append(element("p", explanation.text));
+    if (explanation.url) card.append(sourceLink(explanation.url, explanation.linkLabel ?? "Read the official source"));
   } else if (source.url) {
     card.append(element("p", houseBill
       ? `The House floor schedule lists ${houseBill[1]} for consideration. Vote YES if you think the House will pass it, or NO if you think it will vote it down.`
       : "The Senate floor schedule lists this nomination for consideration. Vote YES if you think the Senate will approve the nominee, or NO if you think it will vote to reject them."));
     card.append(sourceLink(source.url, "Read the official floor schedule"));
   }
-  if (boeingProposal || source.url || promise) {
+  {
     const rules = element("details", undefined, "resolution-rules");
     rules.append(element("summary", "How this vote is decided"), element("p", promise ? question.criteria.slice(0, promise.index) : source.criteria));
     card.append(rules);
-  } else {
-    card.append(element("p", source.criteria));
   }
   if (question.status === "open") {
     const deadline = new Date(question.closesAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" });
