@@ -342,8 +342,12 @@ test("queues a ballot at an early close and hands off at the daily rollover", as
     await db.prepare("INSERT INTO questions (id, prompt, criteria, opens_at, closes_at) VALUES (?, ?, ?, ?, ?)")
       .bind("early", "Early ballot", "Criteria", "2026-11-16T20:00:00.000Z", "2026-11-17T13:25:00.000Z").run();
     const candidate = { id: "bridge", prompt: "Will the bill pass?", criteria: "Official roll call", decisionAt: "2026-11-18T22:00:00.000Z" };
+    let available = true;
     const source: AutonomousSource = {
-      discover: async () => [candidate, { ...candidate, id: "daily" }],
+      discover: async () => {
+        if (!available) throw new Error("Source offline");
+        return [candidate, { ...candidate, id: "daily" }];
+      },
       verify: async () => null,
     };
     expect(await runAutonomousCycle(db, source, Date.parse("2026-11-17T12:30:00Z"), false)).toBe("queued");
@@ -351,6 +355,8 @@ test("queues a ballot at an early close and hands off at the daily rollover", as
       opens_at: "2026-11-17T13:25:00.000Z",
       closes_at: "2026-11-17T20:00:00.000Z",
     });
+    expect(await prepareDaily(db, source, Date.parse("2026-11-17T18:30:00Z"))).toBe("prepared");
+    available = false;
     expect(await runAutonomousCycle(db, source, Date.parse("2026-11-17T20:00:00Z"))).toBe("published");
   } finally {
     await fixture.dispose();
