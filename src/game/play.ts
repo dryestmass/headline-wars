@@ -128,7 +128,7 @@ function questionCard(question: Question, today: boolean): HTMLElement {
     card.append(element("p", "The FAA proposed fixing certain wing fasteners to improve lightning protection. Vote YES if you think the final rule will be published by February 14, or NO if you think it won't."));
     card.append(sourceLink("https://www.govinfo.gov/content/pkg/FR-2026-11-13/pdf/2026-23198.pdf", "Read the FAA proposal"));
   } else if (question.id === "house-119-hr3495") {
-    card.append(element("p", "Under this bill, some real estate agents and direct sellers would be treated as self-employed. Federal minimum wage and overtime rules would no longer apply to them."));
+    card.append(element("p", "The bill decides which pay rules apply to some real estate agents and people who sell products directly to customers. It would count them as working for themselves, so the companies they sell for would not have to pay them the federal minimum wage or extra pay for overtime."));
     card.append(sourceLink("https://www.congress.gov/bill/119th-congress/house-bill/3495/text", "Read the bill"), ...(source.url ? [" · ", sourceLink(source.url, "Read the official floor schedule")] : []));
   } else if (source.url) {
     card.append(element("p", houseBill
