@@ -127,6 +127,9 @@ function questionCard(question: Question, today: boolean): HTMLElement {
   } else if (boeingProposal) {
     card.append(element("p", "The FAA proposed fixing certain wing fasteners to improve lightning protection. Vote YES if you think the final rule will be published by February 14, or NO if you think it won't."));
     card.append(sourceLink("https://www.govinfo.gov/content/pkg/FR-2026-11-13/pdf/2026-23198.pdf", "Read the FAA proposal"));
+  } else if (question.id === "house-119-hr3495") {
+    card.append(element("p", "This bill would use the same test for federal wage law that federal tax law already uses for certain real estate agents and direct sellers. Workers who meet that test would be treated as independent contractors under federal wage law, so its minimum wage and overtime protections would not apply to them."));
+    card.append(sourceLink("https://www.congress.gov/bill/119th-congress/house-bill/3495/text", "Read the bill"), ...(source.url ? [sourceLink(source.url, "Read the official floor schedule")] : []));
   } else if (source.url) {
     card.append(element("p", houseBill
       ? `The House floor schedule lists ${houseBill[1]} for consideration. Vote YES if you think the House will pass it, or NO if you think it will vote it down.`
