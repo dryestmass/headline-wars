@@ -48,12 +48,51 @@ function eligible(candidate: Candidate, time: number): boolean {
     && Date.parse(candidate.decisionAt) - time >= 3_600_000;
 }
 
+const RESERVE_TARGET = 30;
+const RESERVE_MAX_AGE = 24 * 60 * 60_000;
+
+async function availableCandidates(db: D1Database, source: AutonomousSource, time: number) {
+  await db.prepare(`CREATE TABLE IF NOT EXISTS question_reserve (
+    id TEXT PRIMARY KEY, candidate TEXT NOT NULL, checked_at TEXT NOT NULL
+  )`).run();
+  const stamp = new Date(time).toISOString();
+  const cutoff = new Date(time - RESERVE_MAX_AGE).toISOString();
+  let discovered: Candidate[];
+  try {
+    discovered = await source.discover(new Date(time));
+  } catch (error) {
+    console.warn("Question discovery unavailable; checking the reserve", error);
+    const { results } = await db.prepare(`
+      SELECT candidate FROM question_reserve
+      WHERE checked_at >= ? AND NOT EXISTS (SELECT 1 FROM questions WHERE questions.id = question_reserve.id)
+      ORDER BY checked_at DESC, id
+    `).bind(cutoff).all<{ candidate: string }>();
+    return results.map(({ candidate }) => JSON.parse(candidate) as Candidate);
+  }
+
+  const { results } = await db.prepare("SELECT id FROM questions").all<{ id: string }>();
+  const used = new Set(results.map(({ id }) => id));
+  const candidates = [...new Map(discovered.map((candidate) => [candidate.id, candidate])).values()]
+    .filter((candidate) => eligible(candidate, time) && !used.has(candidate.id))
+    .slice(0, RESERVE_TARGET);
+  await db.batch([
+    db.prepare("DELETE FROM question_reserve WHERE checked_at <= ?").bind(stamp),
+    ...candidates.map((candidate) => db.prepare(`
+      INSERT INTO question_reserve (id, candidate, checked_at) VALUES (?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET candidate = excluded.candidate, checked_at = excluded.checked_at
+      WHERE excluded.checked_at >= question_reserve.checked_at
+    `).bind(candidate.id, JSON.stringify(candidate), stamp)),
+  ]);
+  return candidates;
+}
+
 export async function prepareDaily(db: D1Database, source: AutonomousSource, time: number): Promise<string> {
   await ensurePreparation(db);
-  const candidates = await source.discover(new Date(time));
-  const preferred = candidates.find((candidate) => eligible(candidate, time + 90 * 60_000));
+  const candidates = await availableCandidates(db, source, time);
+  const preferred = candidates.find((candidate) => eligible(candidate, todayRollover(time)));
   if (!preferred) return "no-eligible-candidate";
-  await db.prepare("INSERT OR IGNORE INTO daily_question_preparation (day, candidate_id) VALUES (?, ?)")
+  await db.prepare(`INSERT INTO daily_question_preparation (day, candidate_id) VALUES (?, ?)
+    ON CONFLICT(day) DO UPDATE SET candidate_id = excluded.candidate_id`)
     .bind(easternDateTime(time).date, preferred.id).run();
   return "prepared";
 }
@@ -66,7 +105,6 @@ function todayRollover(time: number): number {
 export async function publishDaily(db: D1Database, source: AutonomousSource, time: number, slot = time, gap = false): Promise<string> {
   await ensureRegistry(db);
   await ensureOperations(db);
-  const now = new Date(time);
   const occupiedUntil = await db.prepare(`
     SELECT MAX(closes_at) AS closes_at FROM questions
     WHERE status = 'open' AND opens_at <= ?1 AND closes_at > ?1
@@ -87,17 +125,20 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
   const preferred = await db.prepare("SELECT candidate_id FROM daily_question_preparation WHERE day = ?")
     .bind(date).first<string>("candidate_id");
   // Rediscover from official sources before using any prepared candidate.
-  const candidates = (await source.discover(now)).filter((candidate) => eligible(candidate, opening));
-  candidates.sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
+  const candidates = (await availableCandidates(db, source, time)).filter((candidate) => eligible(candidate, opening));
   const upcoming = await db.prepare(`
     SELECT MIN(opens_at) AS opens_at FROM questions
     WHERE status = 'open' AND opens_at > ?
   `).bind(opensAt).first<string>("opens_at");
   const rollover = todayRollover(opening);
   const slotEnd = gap && rollover > opening ? rollover : nextRollover(opening);
+  const handoff = Math.min(slotEnd, upcoming ? Date.parse(upcoming) : Infinity);
+  const coversSlot = (candidate: Candidate) => Date.parse(candidate.decisionAt) - 15 * 60_000 >= handoff;
+  candidates.sort((a, b) => Number(coversSlot(b)) - Number(coversSlot(a))
+    || Number(b.id === preferred) - Number(a.id === preferred));
   for (const candidate of candidates) {
     const decision = Date.parse(candidate.decisionAt);
-    const closesAt = new Date(Math.min(slotEnd, upcoming ? Date.parse(upcoming) : Infinity, decision - 15 * 60000)).toISOString();
+    const closesAt = new Date(Math.min(handoff, decision - 15 * 60000)).toISOString();
     const [insert] = await db.batch([
       db.prepare(`
         INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
@@ -121,21 +162,6 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
     }
   }
   return "no-eligible-candidate";
-}
-
-export async function refillUpcomingQueue(db: D1Database, source: AutonomousSource, time: number): Promise<string> {
-  let discovered: Promise<Candidate[]> | undefined;
-  const snapshot: AutonomousSource = {
-    discover: () => discovered ??= source.discover(new Date(time)),
-    verify: (candidate) => source.verify(candidate),
-  };
-  let slot = nextRollover(time);
-  const outcomes: string[] = [];
-  for (let offset = 0; offset < 3; offset++) {
-    outcomes.push(await publishDaily(db, snapshot, time, slot));
-    slot = nextRollover(slot);
-  }
-  return outcomes.join(", ");
 }
 
 export async function resolveDue(
