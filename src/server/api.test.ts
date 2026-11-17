@@ -333,3 +333,26 @@ test("keeps 3 p.m. Eastern across daylight saving changes and midnight UTC", () 
   expect(new Date(nextRollover(Date.parse("2026-03-07T20:00:00Z"))).toISOString()).toBe("2026-03-08T19:00:00.000Z");
   expect(new Date(nextRollover(Date.parse("2026-10-31T19:00:00Z"))).toISOString()).toBe("2026-11-01T20:00:00.000Z");
 });
+
+test("queues a ballot at an early close and hands off at the daily rollover", async () => {
+  const fixture = await getPlatformProxy<Env>({ persist: false });
+  try {
+    const db = fixture.env.DB;
+    await applyMigrations(db);
+    await db.prepare("INSERT INTO questions (id, prompt, criteria, opens_at, closes_at) VALUES (?, ?, ?, ?, ?)")
+      .bind("early", "Early ballot", "Criteria", "2026-11-16T20:00:00.000Z", "2026-11-17T13:25:00.000Z").run();
+    const candidate = { id: "bridge", prompt: "Will the bill pass?", criteria: "Official roll call", decisionAt: "2026-11-18T22:00:00.000Z" };
+    const source: AutonomousSource = {
+      discover: async () => [candidate, { ...candidate, id: "daily" }],
+      verify: async () => null,
+    };
+    expect(await runAutonomousCycle(db, source, Date.parse("2026-11-17T12:30:00Z"), false)).toBe("queued");
+    expect(await db.prepare("SELECT opens_at, closes_at FROM questions WHERE id = 'bridge'").first()).toEqual({
+      opens_at: "2026-11-17T13:25:00.000Z",
+      closes_at: "2026-11-17T20:00:00.000Z",
+    });
+    expect(await runAutonomousCycle(db, source, Date.parse("2026-11-17T20:00:00Z"))).toBe("published");
+  } finally {
+    await fixture.dispose();
+  }
+});
