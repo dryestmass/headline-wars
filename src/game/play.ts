@@ -297,6 +297,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       }
     }
     const archive = element("section", undefined, "archive");
+    const expandedQuestions = new Set(Array.from(container.querySelectorAll<HTMLElement>(".archive-question[open]"), (item) => item.dataset.question));
     for (const [label, entries, empty] of [
       ["Pending Questions", questions.filter((q) => q.status === "closed"), "No questions awaiting verification."],
       ["Verified Results", questions.filter((q) => q.status === "resolved"), "No verified outcomes yet."],
@@ -309,13 +310,29 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
       heading.append(element("span", undefined, "archive-icon"), labelText);
       list.dataset.archive = label;
       list.append(heading);
-      list.append(...(entries.length ? entries.map((entry) => questionCard(entry, false)) : [element("p", empty)]));
+      list.append(...(entries.length ? entries.map((entry) => {
+        const card = questionCard(entry, false);
+        const row = document.createElement("details");
+        row.className = "archive-question";
+        row.dataset.question = entry.id;
+        row.open = expandedQuestions.has(entry.id);
+        const summary = element("summary");
+        const title = card.querySelector("h2")!;
+        summary.append(element("strong", title.textContent ?? entry.prompt));
+        title.remove();
+        const total = entry.votes.red.yes + entry.votes.red.no + entry.votes.blue.yes + entry.votes.blue.no;
+        const status = entry.status === "resolved" ? `Result: ${entry.outcome?.toUpperCase() ?? "—"}` : "Awaiting verification";
+        summary.append(element("small", `${status} · ${total.toLocaleString()} ${total === 1 ? "vote" : "votes"}`));
+        row.append(summary, card);
+        return row;
+      }) : [element("p", empty)]));
       archive.append(list);
     }
 
     const focused = document.activeElement;
     const answer = focused instanceof HTMLElement ? focused.dataset.answer : undefined;
     const summary = focused?.tagName === "SUMMARY" ? focused.parentElement?.dataset.archive : null;
+    const focusedQuestion = focused?.tagName === "SUMMARY" ? focused.parentElement?.dataset.question : null;
     const deadline = panel.querySelector(".deadline");
     voteShortcut?.querySelector(".deadline")?.remove();
     if (voteShortcut && deadline && panel.querySelector(".choices")) {
@@ -333,6 +350,7 @@ export function startGame(container: HTMLElement, score: HTMLElement, status: HT
     if (answer) (container.querySelector<HTMLElement>(`[data-answer="${answer}"]`) ??
       container.querySelector<HTMLElement>(".question .ballot-receipt"))?.focus({ preventScroll: true });
     if (summary) Array.from(container.querySelectorAll("summary")).find((item) => item.parentElement?.dataset.archive === summary)?.focus();
+    if (focusedQuestion) Array.from(archive.querySelectorAll<HTMLElement>(".archive-question > summary")).find((item) => item.parentElement?.dataset.question === focusedQuestion)?.focus({ preventScroll: true });
     const lead = score.querySelector("[data-score-lead]");
     if (lead) {
       const difference = game.scores.red - game.scores.blue;

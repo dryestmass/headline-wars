@@ -788,3 +788,17 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   25% { transform: translateX(clamp(8px, 2vw, 24px)) translateY(-2px); }
   75% { transform: translateX(clamp(-24px, -2vw, -8px)) translateY(2px); }
 }
+
+.archive-question { border-top: 1px solid var(--line); }
+.archive-question > summary {
+  cursor: pointer;
+  padding: .65rem .75rem;
+  line-height: 1.35;
+}
+.archive-question > summary:hover { background: #e8dfd54d; }
+.archive-question > summary small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+}
+.archive-question > .archive-entry { padding-inline: .75rem; }
