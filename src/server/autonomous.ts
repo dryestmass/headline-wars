@@ -58,7 +58,12 @@ export async function prepareDaily(db: D1Database, source: AutonomousSource, tim
   return "prepared";
 }
 
-export async function publishDaily(db: D1Database, source: AutonomousSource, time: number, slot = time): Promise<string> {
+function todayRollover(time: number): number {
+  const { date } = easternDateTime(time);
+  return nextRollover(Date.parse(`${date}T12:00:00Z`) - 86_400_000);
+}
+
+export async function publishDaily(db: D1Database, source: AutonomousSource, time: number, slot = time, gap = false): Promise<string> {
   await ensureRegistry(db);
   await ensureOperations(db);
   const now = new Date(time);
@@ -70,8 +75,9 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
   const opensAt = new Date(opening).toISOString();
   const date = easternDateTime(opening).date;
   if (date !== easternDateTime(slot).date || (slot > time && opening !== slot)) return "slot-occupied";
+  const slotKey = gap ? `gap:${opensAt}` : date;
   const published = await db.prepare("SELECT 1 FROM autonomous_questions WHERE published_day = ?")
-    .bind(date).first();
+    .bind(slotKey).first();
   if (published) return "slot-occupied";
   const action = await db.prepare("SELECT action FROM editorial_actions WHERE question_id IS NULL ORDER BY seq DESC LIMIT 1")
     .first<string>("action");
@@ -83,9 +89,15 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
   // Rediscover from official sources before using any prepared candidate.
   const candidates = (await source.discover(now)).filter((candidate) => eligible(candidate, opening));
   candidates.sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
+  const upcoming = await db.prepare(`
+    SELECT MIN(opens_at) AS opens_at FROM questions
+    WHERE status = 'open' AND opens_at > ?
+  `).bind(opensAt).first<string>("opens_at");
+  const rollover = todayRollover(opening);
+  const slotEnd = gap && rollover > opening ? rollover : nextRollover(opening);
   for (const candidate of candidates) {
     const decision = Date.parse(candidate.decisionAt);
-    const closesAt = new Date(Math.min(nextRollover(opening), decision - 15 * 60000)).toISOString();
+    const closesAt = new Date(Math.min(slotEnd, upcoming ? Date.parse(upcoming) : Infinity, decision - 15 * 60000)).toISOString();
     const [insert] = await db.batch([
       db.prepare(`
         INSERT INTO questions (id, prompt, criteria, opens_at, closes_at)
@@ -96,12 +108,12 @@ export async function publishDaily(db: D1Database, source: AutonomousSource, tim
             SELECT 1 FROM questions WHERE status = 'open' AND opens_at < ?5 AND closes_at > ?4
           )
         ON CONFLICT(id) DO NOTHING
-      `).bind(candidate.id, candidate.prompt, candidate.criteria, opensAt, closesAt, date),
+      `).bind(candidate.id, candidate.prompt, candidate.criteria, opensAt, closesAt, slotKey),
       db.prepare(`
         INSERT INTO autonomous_questions (id, published_day, decision_at, subject, office)
         SELECT id, ?1, ?2, ?3, ?4 FROM questions WHERE id = ?5 AND opens_at = ?6
         ON CONFLICT DO NOTHING
-      `).bind(date, candidate.decisionAt, candidate.subject ?? null, candidate.office ?? null, candidate.id, opensAt),
+      `).bind(slotKey, candidate.decisionAt, candidate.subject ?? null, candidate.office ?? null, candidate.id, opensAt),
     ]);
     if (insert.meta.changes) {
       console.info("Published autonomous question", { id: candidate.id, closesAt });
@@ -164,7 +176,24 @@ export async function runAutonomousCycle(db: D1Database, source: AutonomousSourc
     ORDER BY a.checked_at, a.decision_at, a.id
     LIMIT 10
   `).bind(new Date(time).toISOString()).all<Candidate>();
-  const tasks = await Promise.allSettled([resolveDue(db, source, results, time), publish ? publishDaily(db, source, time) : Promise.resolve("waiting-for-rollover")]);
+  const tasks = await Promise.allSettled([
+    resolveDue(db, source, results, time),
+    (async () => {
+      if (publish) {
+        const state = await publishDaily(db, source, time);
+        if (state === "published" || state === "queued" || state === "paused") return state;
+      }
+      const now = new Date(time).toISOString();
+      const activeUntil = await db.prepare(`
+        SELECT MAX(closes_at) AS closes_at FROM questions
+        WHERE status = 'open' AND opens_at <= ?1 AND closes_at > ?1
+      `).bind(now).first<string>("closes_at");
+      const opening = activeUntil ? Date.parse(activeUntil) : time;
+      const rollover = todayRollover(time);
+      if (opening > time + 60 * 60_000 || (time < rollover && opening >= rollover)) return "covered";
+      return publishDaily(db, source, time, opening, true);
+    })(),
+  ]);
   const [resolution, publication] = tasks;
   if (resolution.status === "rejected") throw resolution.reason;
   if (publication.status === "rejected") throw publication.reason;
